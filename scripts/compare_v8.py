@@ -109,11 +109,11 @@ def prio_report(y, p):
             "macro_f1_p1_p3": round(macro_f1(y, p, ["p1", "p2", "p3"]), 4)}
 
 
-def cmd_train(_):
+def cmd_train(a):
     rows = load_rows()
     ids = {r["ticket_id"] for r in rows if r["_split"] == "train"}
     started = time.time()
-    modelmod.train(DATA, OUT / "model_split", include_ids=ids, log=lambda m: print(m, flush=True))
+    modelmod.train(DATA, OUT / a.model, include_ids=ids, complaint_c=a.complaint_c, log=lambda m: print(m, flush=True))
     print("trained on", len(ids), "tickets in", round(time.time() - started), "s")
 
 
@@ -139,14 +139,14 @@ def cmd_eval(a):
     train_rows = [r for r in rows if r["_split"] == "train"]
     parts = {"dev_valid": [r for r in rows if r["_split"] == "dev" and r["_src_file"] == "valid"],
              "test": [r for r in rows if r["_split"] == "test"]}
-    eng = TriageV3(DATA, OUT / "model_split").load()
+    eng = TriageV3(DATA, OUT / a.model).load()
     t0 = time.time(); vec3, heads3 = plain_tfidf_svm(train_rows); fit_s = time.time() - t0
     e5 = None
     if a.e5:
         e5 = load_e5(Path(a.e5), rows, train_rows)
     known = load_rule_ids(DATA / "rules.json")
     res = {"provenance": {
-        "split_sha256": sha(PRIV / "split/split.json"), "model_sha256": sha(OUT / "model_split/model_v3.pkl.gz"),
+        "split_sha256": sha(PRIV / "split/split.json"), "model_sha256": sha(OUT / a.model / "model_v3.pkl.gz"), "model_dir": a.model,
         "data_sha256": {p: sha(DATA / p) for p in ("tickets_train.jsonl.gz", "tickets_valid.jsonl", "taxonomy.json", "rules.json")},
         "code_sha256": {p: sha(ROOT / p) for p in ("src/support_copilot/v3/pipeline.py", "src/support_copilot/v3/model.py",
                                                     "src/support_copilot/v3/labels.py", "scripts/compare_v8.py")},
@@ -194,7 +194,7 @@ def cmd_eval(a):
                                                                 [p for r, p in zip(part, prios) if r["_weak_kind"] == "outcome"])
         # ablations: one override disabled at a time (category only)
         abl = {}
-        for sw in ABLATIONS:
+        for sw in ([] if a.no_ablation else ABLATIONS):
             eng.disabled = {sw}
             preds = []
             for q in reqs:
@@ -204,15 +204,17 @@ def cmd_eval(a):
             rep = cat_report(part, preds, labels)
             abl[sw] = {"acc_all": rep["all"]["acc"], "acc_outcome": rep["outcome_labels_only"]["acc"],
                        "acc_player_text": rep["player_text_labels_only"]["acc"], "changed_rows": sum(a != b for a, b in zip(preds, full))}
-        eng.disabled = set(ABLATIONS)
-        preds = []
-        for q in reqs:
-            eng.duplicates = type(eng.duplicates)()
-            preds.append(eng.triage(q)["category"])
-        eng.disabled = set()
-        rep = cat_report(part, preds, labels)
-        abl["ALL_OVERRIDES_OFF"] = {"acc_all": rep["all"]["acc"], "acc_outcome": rep["outcome_labels_only"]["acc"],
-                                    "acc_player_text": rep["player_text_labels_only"]["acc"], "changed_rows": sum(a != b for a, b in zip(preds, full))}
+        if not a.no_ablation:
+            eng.disabled = set(ABLATIONS)
+            preds = []
+            for q in reqs:
+                eng.duplicates = type(eng.duplicates)()
+                preds.append(eng.triage(q)["category"])
+            eng.disabled = set()
+            rep = cat_report(part, preds, labels)
+            abl["ALL_OVERRIDES_OFF"] = {"acc_all": rep["all"]["acc"], "acc_outcome": rep["outcome_labels_only"]["acc"],
+                                        "acc_player_text": rep["player_text_labels_only"]["acc"],
+                                        "changed_rows": sum(x != y for x, y in zip(preds, full))}
         R["ablation_v3_overrides"] = abl
         # retrieval stages vs the rule the admin cited (canonical id incl. section)
         n = len(rule_hits)
@@ -225,8 +227,8 @@ def cmd_eval(a):
                                                                          ("cited_other_rule" if g not in c else "ok")) for g, h, c in rule_hits))}
         res[name] = R
         print(name, json.dumps({k: v["all"] for k, v in R["category"].items()}, ensure_ascii=False), flush=True)
-    (OUT / "results.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf8")
-    print("->", OUT / "results.json")
+    (OUT / a.results).write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf8")
+    print("->", OUT / a.results)
 
 
 def load_e5(e5_dir: Path, rows, train_rows):
@@ -249,7 +251,8 @@ def load_e5(e5_dir: Path, rows, train_rows):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
-    sp.add_parser("train")
-    e = sp.add_parser("eval"); e.add_argument("--e5", default=None)
+    tr = sp.add_parser("train"); tr.add_argument("--model", default="model_split"); tr.add_argument("--complaint-c", type=float, default=None)
+    e = sp.add_parser("eval"); e.add_argument("--e5", default=None); e.add_argument("--model", default="model_split")
+    e.add_argument("--results", default="results.json"); e.add_argument("--no-ablation", action="store_true")
     a = ap.parse_args()
     {"train": cmd_train, "eval": cmd_eval}[a.cmd](a)

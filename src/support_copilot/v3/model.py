@@ -51,7 +51,7 @@ def _read_jsonl(path: Path):
 
 
 def train(data_dir: Path, out_dir: Path, *, svm_c: float = 0.5, memory_size: int = 12000, seed: int = 13, log=print,
-          include_ids: set[str] | None = None):
+          include_ids: set[str] | None = None, complaint_c: float | None = 0.25):
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.pipeline import make_union
     from sklearn.svm import LinearSVC
@@ -76,7 +76,8 @@ def train(data_dir: Path, out_dir: Path, *, svm_c: float = 0.5, memory_size: int
     for kind in ("complaint", "report"):
         idx = [i for i, t in enumerate(tickets) if t["kind"] == kind]
         # complaints: unweighted (+1-2 pt on valid); reports: balanced to keep recall of rare p0 classes
-        clf = LinearSVC(C=svm_c, class_weight=None if kind == "complaint" else "balanced").fit(X[idx], [labels[i] for i in idx])
+        c = complaint_c if (kind == "complaint" and complaint_c is not None) else svm_c
+        clf = LinearSVC(C=c, class_weight=None if kind == "complaint" else "balanced").fit(X[idx], [labels[i] for i in idx])
         clf.coef_ = clf.coef_.astype(np.float32)
         heads[kind] = clf
         log(f"category head {kind}: classes={list(clf.classes_)}")
@@ -112,7 +113,7 @@ def train(data_dir: Path, out_dir: Path, *, svm_c: float = 0.5, memory_size: int
         pickle.dump(bundle, stream, protocol=pickle.HIGHEST_PROTOCOL)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     manifest = {"format": FORMAT, "sha256": digest, "trained_on": "tickets_train.jsonl.gz",
-                "n_train": len(tickets), "svm_c": svm_c, "subset": include_ids is not None, "seconds": round(time.time() - started, 1),
+                "n_train": len(tickets), "svm_c": svm_c, "complaint_c": complaint_c, "subset": include_ids is not None, "seconds": round(time.time() - started, 1),
                 "label_kind": bundle["label_kind"], "rule_head_classes": list(rule_head.classes_)}
     (out_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf8")
     log(f"saved {path} ({path.stat().st_size / 1e6:.1f} MB) in {manifest['seconds']} s")
