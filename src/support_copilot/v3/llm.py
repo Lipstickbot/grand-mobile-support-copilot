@@ -29,6 +29,7 @@ class LLMPolisher:
     def __init__(self, url: str, model: str = "local", api_key: str | None = None, timeout: float = 3.5, max_tokens: int = 160):
         self.url = url.rstrip("/")
         self.model, self.timeout, self.max_tokens = model, timeout, max_tokens
+        self.no_think = os.getenv("COPILOT_V3_LLM_NO_THINK", "1") == "1"
         self.headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}
         self.stats = {"calls": 0, "ok": 0, "errors": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
 
@@ -45,7 +46,7 @@ class LLMPolisher:
         if not url:
             return None
         return cls(url, os.getenv("COPILOT_V3_LLM_MODEL", "local"), os.getenv("COPILOT_V3_LLM_KEY"),
-                   float(os.getenv("COPILOT_V3_LLM_TIMEOUT", "3.5")))
+                   float(os.getenv("COPILOT_V3_LLM_TIMEOUT", "4.5")))
 
     def polish(self, *, text, lang, category, template, rules, exemplars):
         from .templates import rule_phrase
@@ -53,6 +54,8 @@ class LLMPolisher:
         user = json.dumps({"player_text": text[:1500], "category": category, "draft": template,
                            "RULES": rules_block,
                            "style_examples_from_admins": [e["admin"] for e in exemplars[:3]]}, ensure_ascii=False)
+        if self.no_think:
+            user += "\n/no_think"  # Qwen3: answer directly, no reasoning tokens
         self.stats["calls"] += 1
         started = time.monotonic()
         try:
