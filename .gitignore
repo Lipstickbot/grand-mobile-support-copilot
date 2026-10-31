@@ -1,6 +1,4 @@
-.team-verification/
 .private/
-team/runs/
 __pycache__/
 .env
 .env.*

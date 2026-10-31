@@ -51,9 +51,6 @@ an in-flight CUDA forward may exceed them. Neither run meets five-second latency
 
 - Whole regression suite: **85 passed, 17 subtests passed**, exit 0.
 - `pip check`: exit 0, no broken installed requirements.
-- `scripts/verify-team.ps1`: exit 0; all 12 native roles and strict config verified.
-  Initial sandbox attempt failed on Codex temp permissions; required local-access
-  rerun passed. Native configuration unchanged.
 - Real E5/rules + HTTP adapter (ASGI TestClient), explicit template mode: four
   requests, 0.031–0.297 s excluding model load. No LLM speed/quality inference.
 - Actual TCP `127.0.0.1:8001`: health and synthetic triage returned 200, template/E5

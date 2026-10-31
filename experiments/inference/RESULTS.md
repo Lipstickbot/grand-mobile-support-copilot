@@ -55,8 +55,7 @@ Source: [empty-map fallback](https://github.com/ggml-org/llama.cpp/blob/8642541b
   no generation errors/fallbacks; atomic output completed.
 - Terminating only owned native child changed live HTTP health to503. Fixed the
   security review's cached-ready defect and covered it with a regression test.
-- **124 tests +17 subtests PASS**, exit0; pip checkPASS; native12-role strict
-  configuration verificationPASS. No native agent config changed.
+- **124 tests +17 subtests PASS**, exit0; pip checkPASS.
 - GPU observed4883MiB/98%, decoded approximately29–30tokens/s. All GPU layers
   requested, auto-fit disabled. Default logs omit exact layer count;37/37 log
   confirmation not claimed. HF/native prompt counts matched16/16 cases.
