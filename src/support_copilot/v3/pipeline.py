@@ -46,6 +46,7 @@ RULE_CUES = {  # points that are only relevant when the text says so
 }
 NOT_A_COMPLAINT = re.compile(r"\?|^(?:где|как|почему|когда|зачем|сколько|можно)\b|не (?:работает|поднимается|приходит|грузит|запускается|открывается)|"
                              r"\bбаг|лаг|вылет|техподдерж|тех\.? ?поддерж|обновлени|форма репорт|qanday|qayerda|qachon|nega ishlamay|how |where |why ", re.I)
+RELATIVES = re.compile(r"род(?:н|ня|ни|ств)|мам|мать|матер[иь]\b|отц|пап|семь|ona(?:ng|si|mni|dan|m)|dadam|otam|туыс|анам|әкем|mother|mom|family|madre|m[aã]e|fam[ií]lia", re.I)
 GZ_CUE = re.compile(r"\bзз\b|\bгз\b|\bgz\b|\bzz\b|зел[её]н\w*\s*зон|green\s*zone|zona\s*verde|yashil|жасыл|"
                     r"больниц|\bбольк|мэри|правительств|автосалон|мотосалон|вокзал|стоянк|авторын|\bсто\b|автошкол|военкомат|"
                     r"\bбанк|банкомат|церк|ч[её]рн\w* рын|почт|магазин|24/7|ресторан|\bазс\b|казино|контейнер|остановк|"
@@ -185,23 +186,29 @@ class TriageV3:
             cited.append(doc)
             return rule_phrase(doc, lang)
         if duplicate and category.startswith("complaint."):
-            return render("duplicate", lang, rule=cite(get("rules:31:1.2.9"))), cited
+            return render("duplicate", lang, rule=cite(get("rules:31:1.2.9"))) + render("signature", lang), cited
         if category == "complaint.admin":
-            return render("admin", lang, rule=cite(get("rules:30:3.4"))), cited
+            return render("admin", lang, rule=cite(get("rules:30:3.4"))) + render("signature", lang), cited
         if category == "complaint.invalid" and NOT_A_COMPLAINT.search(player_text):
-            return render("not_complaint", lang, rule=cite(get("rules:31:1.1.2"))), cited
+            return render("not_complaint", lang, rule=cite(get("rules:31:1.1.2"))) + render("signature", lang), cited
         if category == "complaint.invalid":
             doc = get("rules:31:1.2.3") if has_evidence else get("rules:31:1.2.2")
-            return render("invalid", lang, rule=cite(doc)), cited
+            return render("invalid", lang, rule=cite(doc)) + render("signature", lang), cited
         if category.startswith("complaint."):
             doc = self._pick_rule(hits, category, player_text)
-            text = render("complaint", lang, rule=cite(doc), nick=nick) if doc else render("complaint_norule", lang, nick=nick)
+            topic = category.split(".", 1)[1]
+            if topic == "insult" and RELATIVES.search(player_text):
+                topic = "relatives"
+            elif topic == "dm" and GZ_CUE.search(player_text):
+                topic = "dm_gz"
+            text = (render("complaint", lang, rule=cite(doc), nick=nick, gist=topic) if doc
+                    else render("complaint_norule", lang, nick=nick, gist=topic))
             sanction = sanction_text(doc, lang, player_text) if doc is not None else ""
             if sanction:
                 text += render("sanction", lang, sanction=sanction)
             if not has_evidence:
                 text += render("need_evidence", lang, rule2=cite(get("rules:31:1.3.1")))
-            return text, cited
+            return text + render("signature", lang), cited
         if category == "report.account":
             return render("report.account", lang, rule=cite(get("rules:30:1.4"))), cited
         if category == "report.complaint":

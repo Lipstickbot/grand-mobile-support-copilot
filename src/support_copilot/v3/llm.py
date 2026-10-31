@@ -29,10 +29,15 @@ class LLMPolisher:
     def __init__(self, url: str, model: str = "local", api_key: str | None = None, timeout: float = 3.5, max_tokens: int = 160):
         self.url = url.rstrip("/")
         self.model, self.timeout, self.max_tokens = model, timeout, max_tokens
-        import httpx
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-        self.client = httpx.Client(timeout=timeout, headers=headers)
+        self.headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}
         self.stats = {"calls": 0, "ok": 0, "errors": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
+
+    def _post(self, payload: dict) -> dict:
+        import urllib.request  # stdlib only: no extra dependency for the LLM path
+        req = urllib.request.Request(self.url + "/v1/chat/completions", data=json.dumps(payload).encode("utf8"),
+                                     headers=self.headers, method="POST")
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            return json.loads(resp.read().decode("utf8"))
 
     @classmethod
     def from_env(cls):
@@ -51,12 +56,10 @@ class LLMPolisher:
         self.stats["calls"] += 1
         started = time.monotonic()
         try:
-            resp = self.client.post(self.url + "/v1/chat/completions", json={
+            data = self._post({
                 "model": self.model, "temperature": 0.2, "max_tokens": self.max_tokens,
                 "messages": [{"role": "system", "content": SYSTEM.format(lang=LANG_NAME[lang])},
                              {"role": "user", "content": user}]})
-            resp.raise_for_status()
-            data = resp.json()
             out = data["choices"][0]["message"]["content"].strip()
             out = re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()
             usage = data.get("usage") or {}
