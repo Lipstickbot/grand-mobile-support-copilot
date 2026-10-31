@@ -114,8 +114,18 @@ def test_optional_stress_cases_use_their_own_denominators_without_invented_f1():
         "required_citation_cases": 24, "pseudo_citation_cases": 0,
         "critical_correct": 12, "critical_cases": 16, "language_matches": 47}
     output = render(data)
-    assert "нужные ссылки 18 / 24" in output["text"] and "критичные темы 12 / 16" in output["text"]
+    assert "нужные ссылки 18 / 24" in output["text"] and "категория + p0: 12 / 16" in output["text"]
     assert "язык 47 / 48" in output["text"]
+
+
+def test_priority_recall_and_combined_classification_have_distinct_labels():
+    data=report()
+    data["extra_stress"]={"cases":16,"required_citation_hits":0,"required_citation_cases":0,
+        "pseudo_citation_cases":0,"critical_correct":11,"critical_priority_correct":15,
+        "critical_cases":16,"language_matches":16}
+    output=render(data)
+    assert "категория + p0: 11 / 16" in output["text"]
+    assert "приоритет p0: 15 / 16" in output["text"]
 
 
 def test_absent_optional_stress_report_does_not_hide_completed_comparison():

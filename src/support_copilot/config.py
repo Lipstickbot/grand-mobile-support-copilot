@@ -14,7 +14,7 @@ class Settings:
     runtime_dir: Path = ROOT / ".private/runtime"
     embedding_path: Path = ROOT / ".private/models/multilingual-e5-small"
     index_dir: Path = ROOT / ".private/index"
-    classifier_path: Path = ROOT / ".private/classifier-v1/model"
+    classifier_path: Path = ROOT / ".private/classifier-v2-authored/model"
     evaluation_report_path: Path = ROOT / ".private/rag-v3/metrics.json"
     classifier_enabled: bool = True
     query_cache_enabled: bool = True
@@ -25,7 +25,9 @@ class Settings:
     inference_backend: str = "llamacpp"
     dense_enabled: bool = True
     generation_enabled: bool = True
+    generation_decisions_enabled: bool = False
     use_adapter: bool = False
+    adapter_languages: tuple[str, ...] = ("ru", "kk", "uz", "en")
     max_new_tokens: int = 224
     model_dtype: str = "bfloat16"
     device: str = "cuda"
@@ -41,6 +43,10 @@ class Settings:
                 raise ValueError(name + " must be 0 or 1")
             return value == "1"
         backend = os.getenv("COPILOT_BACKEND", defaults.inference_backend)
+        adapter_languages = tuple(value.strip() for value in os.getenv("COPILOT_ADAPTER_LANGUAGES", "ru,kk,uz,en").split(","))
+        if (not adapter_languages or len(set(adapter_languages)) != len(adapter_languages)
+                or not set(adapter_languages) <= {"ru", "kk", "uz", "en"}):
+            raise ValueError("COPILOT_ADAPTER_LANGUAGES must contain unique supported languages")
         if backend not in {"stream", "resident", "llamacpp"}:
             raise ValueError("COPILOT_BACKEND must be stream, resident or llamacpp")
         paths = {k: Path(os.getenv("COPILOT_" + k.upper(), str(getattr(defaults, k))))
@@ -52,7 +58,9 @@ class Settings:
                    classifier_enabled=flag("COPILOT_CLASSIFIER", "1"),
                    query_cache_enabled=flag("COPILOT_QUERY_CACHE", "1"),
                    generation_enabled=flag("COPILOT_GENERATION", "1"),
+                   generation_decisions_enabled=flag("COPILOT_GENERATION_DECISIONS", "0"),
                    use_adapter=flag("COPILOT_USE_ADAPTER", "0"),
+                   adapter_languages=adapter_languages,
                    max_new_tokens=int(os.getenv("COPILOT_MAX_NEW_TOKENS", "224")),
                    model_dtype=os.getenv("COPILOT_DTYPE", "bfloat16"),
                    device=os.getenv("COPILOT_DEVICE", "cuda"),

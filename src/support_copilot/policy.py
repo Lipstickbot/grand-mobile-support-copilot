@@ -12,6 +12,7 @@ from difflib import SequenceMatcher
 from .coretypes import RetrievedRule
 from .text import analyze_language
 from .intents import critical_intents
+from .priority import priority_floor
 
 
 FALLBACKS = {
@@ -86,10 +87,7 @@ def classify(text: str, kind: str) -> tuple[str, str, list[str]]:
         topic = next((key for key in ("admin", "rmt_ads", "cheat", "scam", "insult", "dm") if key in topics), None)
         category = "complaint." + (topic if topic else "invalid" if len(t) < 18 else "other")
     # Mandatory topics are independent of the chosen category and never depend on an admin reply.
-    priority = ("p0" if topics & {"account", "payment"} or re.search(r"угрож.*(?:адрес|жизн|реальн)|массовый баг", t)
-                else "p1" if topics & {"cheat", "scam", "rmt_ads"}
-                else "p2" if topics & {"admin", "insult", "dm"}
-                else "p3")
+    priority = priority_floor(t, topics)
     reasons = ["classification=keyword_heuristic_not_calibrated", "human_review=conservative_baseline"]
     if topics & {"account", "payment", "admin"}:
         reasons.append("mandatory_human_topic=" + ",".join(sorted(topics & {"account", "payment", "admin"})))
@@ -279,11 +277,11 @@ def guard_draft(raw_draft: str, rules: list[RetrievedRule], lang: str, *, player
     # permission/prohibition must have a supplied source. Citation coverage is
     # measured separately and not manufactured for a safe intake response.
     rule_claim = re.search(r"запрещ|разреш|допустим|рұқсат|тыйым|тақиқ|taqiqlan|ruxsat|forbidden|prohibited|permitted|allowed", t)
-    if allowed and rule_claim and not cited.intersection(allowed):
+    if rule_claim and not cited.intersection(allowed):
         issues.append("draft_missing_rule_citation")
     # Staff decide penalties. Reject even plausible durations rather than risk
     # choosing the wrong sanction branch of the same rule.
-    sanction = r"(?:\b(?:mute|muted|ban|banned|jazo\w*|jazola\w*)\b|мут\w*|бан\w*|жаза\w*|бұғат\w*)"
+    sanction = r"(?:\b(?:mute|muted|ban|banned|suspend\w*|suspension|block\w*|jazo\w*|jazola\w*|blokla\w*)\b|мут\w*|бан\w*|блокиров\w*|жаза\w*|бұғат\w*)"
     duration = r"\d+\s*(?:[-–—]\s*\d+\s*)?(?:мин\w*|час\w*|дн\w*|день|сут\w*|тәулік\w*|күн\w*|сағат\w*|minutes?|hours?|days?|daqiqa\w*|soat\w*|kun\w*)"
     if (re.search(sanction + r".{0,40}" + duration, t)
             or re.search(r"\b(?:should|must|shall|deserves?)\b.{0,30}" + sanction, t)

@@ -61,10 +61,20 @@ def main():
     p.add_argument("--after", type=Path, required=True)
     p.add_argument("--followup", type=Path)
     p.add_argument("--replace", action="store_true", help="Archive previous derived aggregates by hash before atomic replacement; raw runs stay untouched")
+    p.add_argument("--allow-classifier-change", action="store_true", help="Explicit classifier-checkpoint comparison; all other runtime identity must match")
     args = p.parse_args()
     before, after = read_run(args.before), read_run(args.after)
+    before_identity = dict(before["manifest"]["server_identity"])
+    after_identity = dict(after["manifest"]["server_identity"])
+    # Before the optional decision-payload feature, the selected legacy prompt
+    # had no such runtime switch. Missing means its original disabled state.
+    before_identity.setdefault("generation_decision_context", False)
+    after_identity.setdefault("generation_decision_context", False)
+    if args.allow_classifier_change:
+        before_identity.pop("classifier_artifact_sha256", None)
+        after_identity.pop("classifier_artifact_sha256", None)
     if (before["manifest"]["fixture_sha256"] != after["manifest"]["fixture_sha256"]
-            or before["manifest"]["server_identity"] != after["manifest"]["server_identity"]
+            or before_identity != after_identity
             or [r["case"] for r in before["triage"]] != [r["case"] for r in after["triage"]]):
         raise ValueError("Comparison needs identical cases/order and model settings; failures stay in denominators")
     report = {"schema_version": 1, "label_kind": "authored_synthetic_quality_comparison_not_human_gold",
@@ -72,17 +82,20 @@ def main():
         "limitations": ["synthetic_not_human_gold", "no_native_language_review", "templates_are_not_model_training",
             "same_cases_used_for_development", "semantic_accuracy_unmeasured", "single_sequential_run_not_SLO"]}
     provenance = {"before": {k: before[k] for k in ("source", "sha256")},
-                  "after": {k: after[k] for k in ("source", "sha256")}}
+                  "after": {k: after[k] for k in ("source", "sha256")},
+                  "classifier_change_explicitly_allowed": args.allow_classifier_change}
     if args.followup:
         extra = read_run(args.followup)
-        if extra["manifest"]["code_sha256"] != after["manifest"]["code_sha256"]:
-            raise ValueError("Followup used different serving code")
+        if (extra["manifest"]["code_sha256"] != after["manifest"]["code_sha256"]
+                or extra["manifest"]["server_identity"] != after["manifest"]["server_identity"]):
+            raise ValueError("Followup used different serving code or model identity")
         rows = [r for r in extra["triage"] if r["case"]["dataset"] == "fresh_challenge"]
         critical = [r for r in rows if r["case"].get("maximum_priority") == "p0"]
         required = [r for r in rows if r["case"]["required_citation_ids"]]
         report["extra_stress"] = {"cases": len(rows), "required_citation_hits": sum(r["assessment"]["checks"]["required_citations_present"] for r in required),
             "required_citation_cases": len(required), "pseudo_citation_cases": pseudo_count(rows),
             "critical_correct": sum(response(r).get("priority") == "p0" and response(r).get("category") == r["case"]["expected_category"] for r in critical),
+            "critical_priority_correct": sum(response(r).get("priority") == "p0" for r in critical),
             "critical_cases": len(critical), "language_matches": sum(r["assessment"]["checks"]["primary_language_match"] for r in rows)}
         provenance["followup"] = {k: extra[k] for k in ("source", "sha256")}
     safe = PublicQualityReport.model_validate(report).model_dump(mode="json")

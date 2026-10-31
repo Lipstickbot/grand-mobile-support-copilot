@@ -50,7 +50,8 @@ function validQualityGroup(g){
 }
 function validQualityStress(g){
  return g&&typeof g==='object'&&['cases','required_citation_hits','required_citation_cases','pseudo_citation_cases','critical_correct','critical_cases','language_matches'].every(k=>Number.isSafeInteger(g[k])&&g[k]>=0)&&
- g.required_citation_hits<=g.required_citation_cases&&g.required_citation_cases<=g.cases&&g.pseudo_citation_cases<=g.cases&&g.critical_correct<=g.critical_cases&&g.critical_cases<=g.cases&&g.language_matches<=g.cases;
+ g.required_citation_hits<=g.required_citation_cases&&g.required_citation_cases<=g.cases&&g.pseudo_citation_cases<=g.cases&&g.critical_correct<=g.critical_cases&&g.critical_cases<=g.cases&&g.language_matches<=g.cases&&
+ (g.critical_priority_correct==null||(Number.isSafeInteger(g.critical_priority_correct)&&g.critical_priority_correct>=g.critical_correct&&g.critical_priority_correct<=g.critical_cases));
 }
 function qualityTable(before,after){
  const wrap=node('div',undefined,'card table-scroll'),table=node('table');table.append(node('caption','Наблюдаемые результаты одного последовательного HTTP-прогона; все попытки учтены.'));
@@ -70,7 +71,7 @@ async function loadQuality(){
  if(r.extra_stress!=null&&!validQualityStress(r.extra_stress))throw new Error('invalid');
  status.textContent='Проверка завершена. Человеческая оценка качества ещё не проведена.';target.append(qualityTable(r.comparison.before,r.comparison.after));
  target.append(node('p','Часть запросов обрабатывается явным шаблоном сбора сведений без LLM. Это изменение маршрутизации и защиты, а не доказательство улучшения весов модели.','muted'));
- if(r.extra_stress){const g=r.extra_stress;const refs=g.required_citation_cases?g.required_citation_hits+' / '+g.required_citation_cases:'не требуются';target.append(node('p','Отдельные новые стрессовые сценарии: '+g.cases+' · нужные ссылки '+refs+' · псевдоссылки '+g.pseudo_citation_cases+' · критичные темы '+g.critical_correct+' / '+g.critical_cases+' · язык '+g.language_matches+' / '+g.cases+'.','muted'));}
+ if(r.extra_stress){const g=r.extra_stress;const refs=g.required_citation_cases?g.required_citation_hits+' / '+g.required_citation_cases:'не требуются';const urgency=g.critical_priority_correct==null?'':' · приоритет p0: '+g.critical_priority_correct+' / '+g.critical_cases;target.append(node('p','Отдельные стрессовые сценарии: '+g.cases+' · нужные ссылки '+refs+' · псевдоссылки '+g.pseudo_citation_cases+' · категория + p0: '+g.critical_correct+' / '+g.critical_cases+urgency+' · язык '+g.language_matches+' / '+g.cases+'.','muted'));}
  const notes={synthetic_not_human_gold:'Сценарии синтетические, человеческих эталонов нет.',no_native_language_review:'Проверка носителями языков ещё не проведена.',templates_are_not_model_training:'Шаблоны и защитные правила не означают дообучение модели.',same_cases_used_for_development:'Сравниваемые сценарии использовались при исправлениях.',semantic_accuracy_unmeasured:'Смысловая точность ответов не измерена людьми.',single_sequential_run_not_SLO:'Один последовательный прогон не подтверждает производственный SLA.'};
  if(Array.isArray(r.limitations)){const list=node('ul');for(const note of r.limitations.slice(0,8)){if(typeof note==='string')list.append(node('li',notes[note]||note.slice(0,800)));}target.append(list);}
  }catch(e){target.replaceChildren();status.textContent='Новая проверка качества недоступна. Обращение можно проверить через форму выше.';}

@@ -164,10 +164,10 @@ class LlamaCppGenerator(LocalGenerator):
             finally:
                 self._base_depth -= 1
 
-    def _prepare_prompt(self, text, lang, rules, category):
+    def _prepare_prompt(self, text, lang, rules, category, decision_context=None):
         selected = list(rules[:5])
         while True:
-            messages = build_messages(text, lang, selected, category)
+            messages = build_messages(text, lang, selected, category, decision_context=decision_context)
             prompt = self._tokenizer.apply_chat_template(messages, tokenize=False,
                                                          add_generation_prompt=True, enable_thinking=False)
             tokens = self._tokenizer(prompt, add_special_tokens=False, truncation=False)["input_ids"]
@@ -183,7 +183,7 @@ class LlamaCppGenerator(LocalGenerator):
             excerpted_rule_ids=[rule.canonical_id for rule in selected if len(rule.text) > _MAX_RULE_CHARS])
         return prompt, included
 
-    def generate(self, text, lang, rules, category=None):
+    def generate(self, text, lang, rules, category=None, *, decision_context=None):
         started = time.monotonic()
         if not _GPU_LOCK.acquire(timeout=self.timeout_seconds):
             raise GenerationTimeout()
@@ -195,7 +195,7 @@ class LlamaCppGenerator(LocalGenerator):
                 "enable_thinking": False, "backend": "llamacpp-b11960-cuda-q4km"}
             if not self.ready or self._process is None or self._process.poll() is not None:
                 raise GenerationError("not_ready")
-            prompt, allowed_refs = self._prepare_prompt(text, lang, rules, category)
+            prompt, allowed_refs = self._prepare_prompt(text, lang, rules, category, decision_context)
             remaining = self.timeout_seconds - (time.monotonic() - started)
             if remaining <= 0:
                 raise GenerationTimeout()

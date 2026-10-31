@@ -212,6 +212,7 @@ def health_identity(health):
     return {"generation": {k: generation.get(k) for k in
         ("backend", "adapter_loaded", "max_prompt_tokens", "max_new_tokens", "timeout_seconds", "context_size")},
         "classifier_artifact_sha256": classifier.get("artifact_sha256"),
+        "generation_decision_context": health.get("generation_decision_context", False),
         "corpus_version": health.get("corpus_version"), "taxonomy_version": health.get("taxonomy_version")}
 
 

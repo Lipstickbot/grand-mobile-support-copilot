@@ -44,6 +44,7 @@ class QualityStress(BaseModel):
     required_citation_cases: int = Field(ge=0, le=2000)
     pseudo_citation_cases: int = Field(ge=0, le=2000)
     critical_correct: int = Field(ge=0, le=2000)
+    critical_priority_correct: int | None = Field(default=None, ge=0, le=2000)
     critical_cases: int = Field(ge=0, le=2000)
     language_matches: int = Field(ge=0, le=2000)
 
@@ -53,6 +54,8 @@ class QualityStress(BaseModel):
                 and self.critical_correct <= self.critical_cases <= self.cases
                 and self.language_matches <= self.cases and self.pseudo_citation_cases <= self.cases):
             raise ValueError("Inconsistent stress counts")
+        if self.critical_priority_correct is not None and not self.critical_correct <= self.critical_priority_correct <= self.critical_cases:
+            raise ValueError("Inconsistent critical priority counts")
         return self
 
 

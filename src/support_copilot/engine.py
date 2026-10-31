@@ -5,12 +5,14 @@ import re
 import json
 import hashlib
 from dataclasses import asdict
+from contextlib import nullcontext
 import threading
 import time
 
 from .config import Settings
 from .policy import DuplicateTracker, FALLBACKS, LANGUAGE_CLARIFICATION, classify, detect_language, guard_draft, select_relevant_rules, topics_for
 from .intake import intake_reply
+from .priority import decide_priority
 from .text import restore_kazakh, analyze_language, normalize_retrieval_query
 from .schemas import (DraftReply, Extracted, TriageRequest, TriageResponse,
                       RagSearchRequest, RagSearchResponse, KnowledgeHit)
@@ -76,6 +78,7 @@ class TriageEngine:
                 "classification": "e5_cpu_weak_supervision" if self.classifier else "uncalibrated_keyword_heuristic",
                 "classifier": self.classifier.stats() if self.classifier else {"ready": False, "mode": "explicit_keyword_fallback"},
                 "all_cases_require_human": True,
+                "generation_decision_context": self.settings.generation_decisions_enabled,
                 "taxonomy_version": self._taxonomy_version,
                 "corpus_version": self._corpus_version,
                 "retrieval": self.retriever.stats() if self.retriever else None,
@@ -114,12 +117,10 @@ class TriageEngine:
         if category in {"report.account", "report.payment", "complaint.admin"}:
             selected = category
             reasons.append("classifier_category=mandatory_topic_override")
-        proposed_priority = priority if prediction["priority_uncertain"] else prediction["priority"]
-        # The learned head may raise urgency, never lower a recognized safety floor.
-        selected_priority = min(priority, proposed_priority, key=lambda x: int(x[1]))
-        if selected in {"report.account", "report.payment"}:
-            selected_priority = "p0"
-            reasons.append("priority=mandatory_category_safety_floor")
+        urgency = decide_priority(player, selected, topics=topics_for(player),
+            learned_priority=prediction["priority"], learned_uncertain=prediction["priority_uncertain"])
+        selected_priority = urgency.priority
+        reasons.extend(urgency.reasons)
         reasons.extend(prediction["reasons"])
         reasons.append("priority=learned_with_independent_keyword_safety_floor")
         reasons.append("classifier_input_window=e5_512_tokens")
@@ -235,7 +236,24 @@ class TriageEngine:
             reasons += ["generation=skipped_no_verified_rule", "draft=source_absent_intake_template"]
         elif self.generator is not None and lang in {"ru", "kk", "uz", "en"}:
             try:
-                raw = self.generator.generate(context, lang, rules, category)
+                outside_adapter_scope = self.settings.use_adapter and lang not in self.settings.adapter_languages
+                if outside_adapter_scope and not hasattr(self.generator, "disable_adapter"):
+                    from .generation import GenerationError
+                    raise GenerationError("adapter_scope_unsupported")
+                scope = self.generator.disable_adapter() if outside_adapter_scope else nullcontext()
+                with scope:
+                    if self.settings.generation_decisions_enabled:
+                        if not hasattr(self.generator, "generate_with_decisions"):
+                            from .generation import GenerationError
+                            raise GenerationError("decision_context_unsupported")
+                        raw = self.generator.generate_with_decisions(context, lang, rules, category, {
+                            "priority": priority, "needs_human": True,
+                            "reported_metadata": {"nickname": request.reported_nick, "server": None,
+                                "attachments_count": request.images_count + sum(m.attachments for m in request.messages if m.role != "admin")}})
+                    else:
+                        raw = self.generator.generate(context, lang, rules, category)
+                if self.settings.use_adapter:
+                    reasons.append("generation_adapter=" + ("disabled_for_language" if outside_adapter_scope else "enabled_in_language_scope"))
             except Exception as exc:
                 from .generation import GenerationError
                 if not isinstance(exc, GenerationError):

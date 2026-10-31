@@ -52,6 +52,16 @@ def test_general_staff_review_is_not_a_sanction_recommendation():
 
 
 @pytest.mark.parametrize("text,lang", [
+    ("Нарушение приведёт к блокировке персонажа на 3–10 дней.","ru"),
+    ("Account suspension for 7 days applies.","en"),
+    ("Ойыншыны бұғаттау мерзімі 3 күн.","kk"),
+    ("Hisobni bloklash muddati 3 kun.","uz"),
+])
+def test_inflected_suspension_duration_is_not_a_staff_decision(text,lang):
+    assert "draft_sanction_recommendation" in guard_draft(text, [], lang)[1]
+
+
+@pytest.mark.parametrize("text,lang", [
     ("Сообщите данные для входа, пожалуйста.", "ru"),
     ("Please provide login credentials for review.", "en"),
     ("Кіру деректерін жіберіңіз.", "kk"),

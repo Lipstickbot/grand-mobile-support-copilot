@@ -111,7 +111,7 @@ def normalize_draft(raw: str, allowed_refs: set[str] | None = None) -> str:
 
 
 def build_messages(text: str, lang: str, rules: list[RetrievedRule],
-                   category: str | None = None) -> list[dict[str, str]]:
+                   category: str | None = None, *, decision_context: dict | None = None) -> list[dict[str, str]]:
     if lang not in _LANGUAGES:
         raise GenerationError("unsupported_language")
     if not isinstance(text, str) or not text.strip() or len(text) > 16000:
@@ -140,6 +140,21 @@ def build_messages(text: str, lang: str, rules: list[RetrievedRule],
             "is_excerpt": len(rule.text) > _MAX_RULE_CHARS,
         } for rule in rules],
     }
+    if decision_context is not None:
+        # Explicit allowlist: historical replies/outcomes and arbitrary prompt text
+        # cannot enter via this structured decision channel.
+        if (set(decision_context) != {"priority", "needs_human", "reported_metadata"}
+                or decision_context["priority"] not in {"p0", "p1", "p2", "p3"}
+                or decision_context["needs_human"] is not True):
+            raise GenerationError("invalid_decision_context")
+        metadata = decision_context["reported_metadata"]
+        if (not isinstance(metadata, dict) or set(metadata) != {"nickname", "server", "attachments_count"}
+                or type(metadata["attachments_count"]) is not int or not 0 <= metadata["attachments_count"] <= 51000
+                or any(v is not None and (not isinstance(v, str) or len(v) > 128)
+                       for v in (metadata["nickname"], metadata["server"]))):
+            raise GenerationError("invalid_decision_context")
+        payload.update(language=lang, priority=decision_context["priority"], needs_human=True,
+                       reported_metadata=metadata, reported_facts_verified=False)
     # Prevent literal chat control tokens supplied as data becoming role delimiters.
     content = json.dumps(payload, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e")
     return [{"role": "system", "content": system}, {"role": "user", "content": content}]
@@ -272,10 +287,13 @@ class LocalGenerator:
             finally:
                 self._base_depth -= 1
 
-    def _prepare_inputs(self, text, lang, rules, category):
+    def generate_with_decisions(self, text, lang, rules, category, decision_context):
+        return self.generate(text, lang, rules, category, decision_context=decision_context)
+
+    def _prepare_inputs(self, text, lang, rules, category, decision_context=None):
         selected = list(rules[:5])
         while True:
-            messages = build_messages(text, lang, selected, category)
+            messages = build_messages(text, lang, selected, category, decision_context=decision_context)
             rendered = self._tokenizer.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True, enable_thinking=False)
             batch = self._tokenizer(rendered, return_tensors="pt", add_special_tokens=False,
@@ -294,7 +312,7 @@ class LocalGenerator:
             excerpted_rule_ids=[rule.canonical_id for rule in selected if len(rule.text) > _MAX_RULE_CHARS])
         return batch.to(self.device), prompt_tokens, included
 
-    def generate(self, text: str, lang: str, rules: list[RetrievedRule], category: str | None = None) -> str:
+    def generate(self, text: str, lang: str, rules: list[RetrievedRule], category: str | None = None, *, decision_context=None) -> str:
         started = time.monotonic()
         if not _GPU_LOCK.acquire(timeout=self.timeout_seconds):
             raise GenerationTimeout()
@@ -305,7 +323,7 @@ class LocalGenerator:
                                     "use_cache": self.use_cache, "enable_thinking": False}
             if not self.ready:
                 raise GenerationError("not_ready")
-            batch, prompt_tokens, allowed_refs = self._prepare_inputs(text, lang, rules, category)
+            batch, prompt_tokens, allowed_refs = self._prepare_inputs(text, lang, rules, category, decision_context)
             deadline = Deadline(started + self.timeout_seconds)
             if time.monotonic() >= deadline.end:
                 raise GenerationTimeout()
