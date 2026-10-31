@@ -39,6 +39,11 @@ SERVER_RE = re.compile(r"(?:сервер\w*|server|сервере)\s*(?:№|#|:)
 PAYMENT_EXTRA = re.compile(r"(?:купил\w*|купив|оплатил\w*|оплатив|задонатил\w*|задонатив|поповнив|пополнил\w*|сатып алдым|to.?ladim|sotib oldim|"
                            r"paid|bought|pagu[eé]|compr[eé]|paguei|comprei).{0,60}(?:не\s*(?:приш|пришл|появ|зачисл|получ)|"
                            r"не\s*з.?явил|немає|нема|не прийш|түспеді|келмеді|kelmadi|tushmadi|not (?:received|arrived|credited)|no (?:lleg|recib)|n[aã]o (?:cheg|receb|apareceu))", re.I)
+GZ_CUE = re.compile(r"\bзз\b|\bгз\b|\bgz\b|\bzz\b|зел[её]н\w*\s*зон|green\s*zone|zona\s*verde|yashil|жасыл|"
+                    r"больниц|\bбольк|мэри|правительств|автосалон|мотосалон|вокзал|стоянк|авторын|\bсто\b|автошкол|военкомат|"
+                    r"\bбанк|банкомат|церк|ч[её]рн\w* рын|почт|магазин|24/7|ресторан|\bазс\b|казино|контейнер|остановк|"
+                    r"спавн|шахт|каменолом|ферм|завод|ивент|kasalxona|bank|spawn|hospital", re.I)
+HELP_ONLY = re.compile(r"^(?:(?:пож\w*|пж\w*|плиз|pls|please|admin\w*|админ\w*|адмін\w*|iltimos)\s+)*(?:пом[оа]г\w*|пам[оа]г\w*|поможі\w*|допоможі\w*|хелп\w*|help|yordam|сос|sos|көмектес\w*)(?:\s+(?:пож\w*|пж\w*|плиз|pls|please|me|admin\w*|админ\w*|адмін\w*|iltimos|мне|мені))*$")
 WHERE_Q = re.compile(r"\bгде\b|\bкуда\b|қайда|qayer|\bwhere\b|d[oó]nde|\bonde\b|как (?:найти|доехать|попасть)", re.I)
 SENSITIVE_HINTS = re.compile(r"взлом|украл\w* акк|разбан|верните|возврат|refund|unban|оплат|донат|списал", re.I)
 
@@ -146,11 +151,13 @@ class TriageV3:
         ranked = sorted(scores.items(), key=lambda x: -x[1])[:k]
         return [(self.retriever.get(cid), s, why[cid]) for cid, s in ranked if self.retriever.get(cid) is not None]
 
-    def _pick_rule(self, hits, category):
-        """A rule is cited only if it is strongly supported AND consistent with the category."""
+    def _pick_rule(self, hits, category, text=""):
+        """A rule is cited only if it is strongly supported AND consistent with the category.
+        Green Zone points (section 32) additionally need a Green Zone cue in the text."""
         allowed = set(self.prior.get(category, []))
-        for doc, score, _ in hits:
-            if doc.ref is None:
+        gz_ok = bool(GZ_CUE.search(text))
+        for doc, score, why in hits:
+            if doc.ref is None or (doc.section_id == 32 and not gz_ok and "player_ref" not in why):
                 continue
             if category == "complaint.other" and score >= .45 and doc.section_id != 31:
                 return doc
@@ -175,7 +182,7 @@ class TriageV3:
             doc = get("rules:31:1.2.3") if has_evidence else get("rules:31:1.2.2")
             return render("invalid", lang, rule=cite(doc)), cited
         if category.startswith("complaint."):
-            doc = self._pick_rule(hits, category)
+            doc = self._pick_rule(hits, category, text)
             text = render("complaint", lang, rule=cite(doc), nick=nick) if doc else render("complaint_norule", lang, nick=nick)
             sanction = sanction_text(doc, lang) if doc is not None else ""
             if sanction:
@@ -186,7 +193,7 @@ class TriageV3:
         if category == "report.account":
             return render("report.account", lang, rule=cite(get("rules:30:1.4"))), cited
         if category == "report.complaint":
-            doc = self._pick_rule([h for h in hits if h[0].section_id in (30, 32)], "complaint.insult")
+            doc = self._pick_rule([h for h in hits if h[0].section_id in (30, 32)], "complaint.insult", text)
             if doc is not None and hits and hits[0][1] >= .3:
                 return render("report.complaint_rule", lang, rule=cite(doc)), cited
             return render("report.complaint", lang), cited
@@ -235,6 +242,15 @@ class TriageV3:
             if kw and kw != category:
                 reasons.append(f"multilang_keywords={kw} (model={category})")
                 category = kw
+        if category == "complaint.invalid":
+            topic = player_topic(text)  # the description itself, not the free-form rule field
+            if topic:  # a described violation is never auto-rejected as "empty"
+                category = "complaint." + topic
+                reasons.append("override=invalid_but_violation_described_" + topic)
+        if kind == "report" and HELP_ONLY.match(re.sub(r"[^\w\s]", "", norm(text)).strip()):
+            if category != "report.offtopic":
+                reasons.append("override=bare_help_request_is_offtopic")
+            category = "report.offtopic"
         if category == "complaint.other":
             topic = player_topic(text + " " + (refs_raw or ""))
             if topic:

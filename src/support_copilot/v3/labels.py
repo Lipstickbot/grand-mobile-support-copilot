@@ -36,7 +36,7 @@ PLAYER_KW = [
     ("rmt_ads", r"за реал|реальн\w* деньг|прода[её]т акк|рекла|rmt|real pul|тг канал|telegram|телеграм|продаж\w* вирт"),
     ("scam", r"обман|aldab|aldad|aldov|алда|алаяқ|кинул|скам|scam|мошен|развел|развод|не отдал|не вернул|вымога|aldad|firib|4\.1"),
     ("insult", r"оск|атскарб|обзыва|матер|so.?kin|so.?kya|so.?kdi|sukin|onasi|онасин|haqor|балағат|боқ|оскорб|мат\b|матер|обзыв|родн|мамк|мать|токсич|расизм|haqorat|so'k|сук|пидор|пидар|хуй|еба|бля|2\.1|2\.4"),
-    ("dm", r"\bдм\b|\bdm\b|\bdb\b|nrp|задерж|повязал|кишан|kishan|верев|веревк|арканом|похищ|вбил|убив|бензопил|non ?rp|нрп|o.?ldir|урди|без причин|просто так|\bdm\b|\bдб\b|\bdb\b|\bск\b|\bsk\b|\bтк\b|\btk\b|убил|убива|без причин|gz\b|зел[её]н|нонрп|non ?rp|урон|o'ldir|сбил|давит|таран"),
+    ("dm", r"\bдм\b|\bdm\b|\bdb\b|nrp|\b(?:u|o.?)ld[iy]?r(?:di|ib|gan|yapti|ishdi|adi)\w*|уход\w* от рп|ухо?дит от рп|уход с рп|leaving rp|задерж|повязал|кишан|kishan|верев|веревк|арканом|похищ|вбил|убив|бензопил|non ?rp|нрп|o.?ldir|урди|без причин|просто так|\bdm\b|\bдб\b|\bdb\b|\bск\b|\bsk\b|\bтк\b|\btk\b|убил|убива|без причин|gz\b|зел[её]н|нонрп|non ?rp|урон|o'ldir|сбил|давит|таран"),
 ]
 
 ADMIN_APPEAL = re.compile(r"наказани\w* (?:было )?выдан\w* (?:верно|неверно|правильно|ошибочно)|будет снят|снято|снимем|"
@@ -140,6 +140,8 @@ def label_report(r):
     player = norm("\n".join(m["text"] for m in r["messages"] if m["role"] == "player"))
     if PAYMENT_TEXT.search(player):
         return "report.payment", "player_payment_phrase"
+    if EMPTY.match(re.sub(r"[^\w\s+?!.]", "", player)):
+        return "report.offtopic", "empty_text"  # taxonomy: a bare "помогите" is off-topic
     admin = "\n".join(m["text"] for m in r["messages"] if m["role"] == "admin")
     for cat, pat in REPORT_KW[:2]:
         if re.search(pat, player): return cat, "player_keywords"

@@ -1,4 +1,4 @@
-"""Evaluate v3 vs the previous pipeline pieces on tickets_valid.jsonl.
+"""Evaluate the triage pipeline on tickets_valid.jsonl (with simple keyword/BM25 baselines for reference).
 
 Usage: python -X utf8 scripts/eval_v3.py [--out .private/v3/metrics.json]
 Labels: (1) weak labels from admin outcomes (agreement, not truth); (2) 160 manual
@@ -13,7 +13,7 @@ import numpy as np
 from support_copilot.v3.pipeline import TriageV3
 from support_copilot.v3.labels import weak_category, weak_priority
 from support_copilot.v3.rulekb import admin_rule_ids
-from support_copilot.policy import classify as legacy_classify, select_relevant_rules
+from support_copilot.policy import classify as baseline_classify, select_relevant_rules
 from support_copilot.text import analyze_language, normalize_retrieval_query
 
 def f1_macro(y, p):
@@ -35,24 +35,24 @@ def main():
     preds, lat = [None] * len(valid), []
     for i in order:
         t = time.monotonic(); preds[i] = eng.triage(valid[i]); lat.append(time.monotonic() - t)
-    legacy = []
+    legacy = []  # simple baselines for reference
     for r in valid:
         pl = "\n".join(m["text"] for m in r["messages"] if m["role"] == "player")
         an = analyze_language(pl, r.get("server_lang"), r.get("region"))
         q = normalize_retrieval_query(an["normalized_text"])[0]
-        c, p, _ = legacy_classify(q, r["kind"]); legacy.append((c, p, an["language"], q))
+        c, p, _ = baseline_classify(q, r["kind"]); legacy.append((c, p, an["language"], q))
     weak = [weak_category(r)[0] for r in valid]; weakp = [weak_priority(r, c) for r, c in zip(valid, weak)]
     M = {"n_valid": len(valid)}
     M["category_vs_weak_labels"] = {"v3_acc": round(np.mean([p["category"] == w for p, w in zip(preds, weak)]), 3),
-                                    "legacy_keyword_acc": round(np.mean([l[0] == w for l, w in zip(legacy, weak)]), 3)}
+                                    "keyword_baseline_acc": round(np.mean([l[0] == w for l, w in zip(legacy, weak)]), 3)}
     M["priority_macroF1_vs_weak"] = {"v3": round(f1_macro(weakp, [p["priority"] for p in preds]), 3),
-                                     "legacy_keyword": round(f1_macro(weakp, [l[1] for l in legacy]), 3)}
+                                     "keyword_baseline": round(f1_macro(weakp, [l[1] for l in legacy]), 3)}
     idx = {r["ticket_id"]: i for i, r in enumerate(valid)}
     for split in ("dev", "fresh"):
         if split in hand:
             items = [(idx[t], h) for t, h in hand[split].items() if t in idx]
             M[f"category_vs_manual_{split}"] = {"n": len(items), "v3": sum(preds[i]["category"] == h for i, h in items),
-                                                "legacy_keyword": sum(legacy[i][0] == h for i, h in items),
+                                                "keyword_baseline": sum(legacy[i][0] == h for i, h in items),
                                                 "weak_labeler_upper_ref": sum(weak[i] == h for i, h in items)}
     # retrieval vs admin-cited rules
     ev = [(i, admin_rule_ids(r, eng.known)) for i, r in enumerate(valid) if r["kind"] == "complaint"]
@@ -67,7 +67,7 @@ def main():
         old = [x.canonical_id for x in d["results"]]
         gated = [x.canonical_id for x in select_relevant_rules(legacy[i][3], d["results"], cues=d.get("query_cues"), events=d.get("event_sections"))]
         cited_ids = [x.split("=", 1)[1] for x in preds[i]["reasons"] if x.startswith("cited_id=")]
-        for name, res in (("v3", new), ("legacy_bm25", old), ("legacy_bm25_gate", gated)):
+        for name, res in (("v3", new), ("bm25_baseline", old), ("bm25_baseline_gated", gated)):
             for k in (1, 3, 5): rec[name][f"R@{k}"] += bool(set(res[:k]) & set(g))
         rec["v3_draft"]["cited_matches_admin_rule"] += bool(set(cited_ids) & set(g))
         rec["v3_draft"]["has_citation"] += bool(cited_ids)
@@ -83,7 +83,7 @@ def main():
     M["needs_human_share"] = round(np.mean([p["needs_human"] for p in preds]), 3)
     M["needs_human_share_by_kind"] = {k: round(np.mean([p["needs_human"] for p, r in zip(preds, valid) if r["kind"] == k]), 3) for k in ("complaint", "report")}
     M["spam_or_duplicate_flagged"] = sum(p["is_spam_or_duplicate"] for p in preds)
-    M["language"] = {"v3": dict(Counter(p["lang"] for p in preds)), "legacy_detector": dict(Counter(l[2] for l in legacy))}
+    M["language"] = {"v3": dict(Counter(p["lang"] for p in preds)), "heuristic_detector_baseline": dict(Counter(l[2] for l in legacy))}
     lat.sort(); M["latency_ms_no_llm"] = {"p50": round(lat[len(lat) // 2] * 1e3, 2), "p95": round(lat[int(.95 * (len(lat) - 1))] * 1e3, 2)}
     by_lang = defaultdict(list)
     for p, w in zip(preds, weak):
