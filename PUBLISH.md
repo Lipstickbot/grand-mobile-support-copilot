@@ -1,0 +1,31 @@
+# GitHub: исходники проекта
+
+Цель: приватный `Lipstickbot/grand-mobile-support-copilot`. Сначала локально
+проверяется снимок, затем отдельный флаг разрешает сетевую публикацию.
+
+```powershell
+# Git Credential Manager уже установлен в этой среде:
+git credential-manager github login --username Lipstickbot --browser
+# Проверить локальный архив без обращения к GitHub:
+.venv-soup/Scripts/python.exe -X utf8 scripts/publish_github.py
+# Создать новый приватный репозиторий и загрузить проверенный снимок:
+.venv-soup/Scripts/python.exe -X utf8 scripts/publish_github.py --execute
+```
+
+Скрипт проверяет, что авторизован именно `Lipstickbot`, не меняет существующие
+репозитории и не повторяет сетевые операции автоматически. Он не пишет токен
+в исходники, архив или журналы. Пароли/токены в чат присылать не нужно.
+Если публикация прервалась, проверьте `.private/github-export/published.json`
+и состояние удалённого репозитория перед повтором. Приватный репозиторий также
+не предназначен для исходных данных игроков или весов: они исключены из снимка.
+
+В снимок включаются исходники, тесты, scripts, документация и локальные TOML-роли.
+Исключаются `.private`, виртуальные среды, `.git`, кэши, секреты, пользовательские
+документы, архивы, журналы и веса. ZIP и manifest создаются только в `.private`.
+Удалённые Git blob-хеши проверяются после создания коммита.
+
+Используются официальные API GitHub: [создание репозитория](https://docs.github.com/en/rest/repos/repos#create-a-repository-for-the-authenticated-user),
+[Git trees](https://docs.github.com/en/rest/git/trees#create-a-tree) и
+[ссылки веток](https://docs.github.com/en/rest/git/refs#update-a-reference).
+Публикация исходников не запускает приложение и не означает готовность к продакшену.
+Актуальные ограничения и проверенные версии описаны в [STATUS.md](STATUS.md).

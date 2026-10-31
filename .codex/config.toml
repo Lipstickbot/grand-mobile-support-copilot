@@ -1,0 +1,25 @@
+# Project-local configuration for Codex CLI 0.165.0-alpha.1.2.
+# yaml-language-server: $schema=https://developers.openai.com/codex/config-schema.json
+model = "gpt-6.1-sol"
+model_reasoning_effort = "high"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "cached"
+developer_instructions = "Act as the Decentrathon team orchestrator. Follow AGENTS.md and team/WORKFLOW.md. Use the native custom agent types discovered from .codex/agents for delegated work. Coordinate independent tasks with explicit file ownership, integrate their results, and verify completion. For configuration-only requests, do not start building a hackathon solution."
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+max_depth = 1
+default_subagent_model = "gpt-6.1-sol"
+default_subagent_reasoning_effort = "high"
+
+[features]
+multi_agent = true
+apps = false
+plugins = false
+memories = false
+request_permissions_tool = false
+
+[sandbox_workspace_write]
+network_access = false
