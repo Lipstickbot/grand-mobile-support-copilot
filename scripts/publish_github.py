@@ -18,6 +18,9 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 TOP = {"README.md", "RAG.md", "AGENTS.md", "STATUS.md", "PUBLISH.md", "pyproject.toml", ".gitignore"}
+EXTRA_SOURCE = {"experiments/inference/requirements-lock.txt", "experiments/rag/requirements-lock.txt",
+                "experiments/soup/requirements-lock.txt", "experiments/soup/smoke.yaml",
+                "experiments/rag-training/continue108.yaml"}
 DIRECTORIES = {"src", "tests", "scripts", "team", "experiments", ".codex"}
 SUFFIXES = {".py", ".md", ".ps1", ".toml"}
 EXCLUDED_PARTS = {".private", ".git", ".venv", ".venv-soup", "__pycache__", ".pytest_cache", "runs"}
@@ -40,7 +43,8 @@ def collect_source(root=ROOT):
         if (set(rel.parts) & EXCLUDED_PARTS or any(p.endswith(".egg-info") for p in rel.parts)
                 or not path.is_file()):
             continue
-        if not (rel.as_posix() in TOP or (rel.parts[0] in DIRECTORIES and path.suffix in SUFFIXES)):
+        if not (rel.as_posix() in TOP or rel.as_posix() in EXTRA_SOURCE
+                or (rel.parts[0] in DIRECTORIES and path.suffix in SUFFIXES)):
             continue
         if path.is_symlink() or not path.resolve().is_relative_to(root):
             raise ValueError("Source symlinks are excluded")

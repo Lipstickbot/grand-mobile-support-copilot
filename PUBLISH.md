@@ -24,6 +24,11 @@ git credential-manager github login --username Lipstickbot --browser
 документы, архивы, журналы и веса. ZIP и manifest создаются только в `.private`.
 Удалённые Git blob-хеши проверяются после создания коммита.
 
+После первой загрузки текущая рабочая папка связана с `origin/main` обычным Git.
+Дальнейшие изменения сохраняются новыми коммитами и `git push`; `--execute`
+предназначен только для создания нового репозитория. Проверенные lock-файлы
+окружения и YAML экспериментов включены, сами приватные обучающие данные — нет.
+
 Используются официальные API GitHub: [создание репозитория](https://docs.github.com/en/rest/repos/repos#create-a-repository-for-the-authenticated-user),
 [Git trees](https://docs.github.com/en/rest/git/trees#create-a-tree) и
 [ссылки веток](https://docs.github.com/en/rest/git/refs#update-a-reference).

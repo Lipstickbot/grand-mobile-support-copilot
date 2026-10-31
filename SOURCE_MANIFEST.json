@@ -90,6 +90,11 @@
       "sha256": "dd88a8185dfdd2fa03a7ebc5abc5584aaccb25105966389279dd51d867b263fe"
     },
     {
+      "path": "experiments/inference/requirements-lock.txt",
+      "bytes": 1596,
+      "sha256": "dfeeae841f7960aa663a529b35589380b5c51f0a0ec6832ad4dd9bba2e22dff1"
+    },
+    {
       "path": "experiments/inference/RESULTS.md",
       "bytes": 5814,
       "sha256": "f637832e6d939857fa2de25479017d0fe456dd95ba096404d8be99c4b1dba36c"
@@ -115,9 +120,19 @@
       "sha256": "7031e49ffcd665f2017f40635d7690cfa16e8ff5db6b153f02955f4f1aeb76ef"
     },
     {
+      "path": "experiments/rag/requirements-lock.txt",
+      "bytes": 1521,
+      "sha256": "34aa96d136064df2ba3ef25535717ab5e34a5c07536094909dd42dadbcddfc5b"
+    },
+    {
       "path": "experiments/rag/RESULTS.md",
       "bytes": 5913,
       "sha256": "b739c992a13aa88621f58f855058b47756b96f14b00f363c511458dca87aa125"
+    },
+    {
+      "path": "experiments/rag-training/continue108.yaml",
+      "bytes": 714,
+      "sha256": "82dabbe85574e595dc2e43046ec92eab20aaea4aab569543408ae0c51accc009"
     },
     {
       "path": "experiments/rag-training/README.md",
@@ -140,9 +155,19 @@
       "sha256": "30d218204d0bde55eba819a5606369829959a9b9fbcca76fee5cab9378230c50"
     },
     {
+      "path": "experiments/soup/requirements-lock.txt",
+      "bytes": 1201,
+      "sha256": "665a95d8cdd515d882818c8f70fbc411e0751fd9c47a8d0bc2a63bae3d09bb51"
+    },
+    {
+      "path": "experiments/soup/smoke.yaml",
+      "bytes": 675,
+      "sha256": "56ec72b91cbf5b345982b53e7c6958aead65474d28b90f75e736b5f0abc9e02a"
+    },
+    {
       "path": "PUBLISH.md",
-      "bytes": 2759,
-      "sha256": "ed88f3ca439af42b7f5d2bdf000acc51eee0ed9e9116d9682f2b6fc8e38debc1"
+      "bytes": 3298,
+      "sha256": "cfb4182bacc732ffe48ac2de38ac6332ec02b27c678e86fec6b56b2aca965715"
     },
     {
       "path": "pyproject.toml",
@@ -236,8 +261,8 @@
     },
     {
       "path": "scripts/publish_github.py",
-      "bytes": 8760,
-      "sha256": "37dd1f6be2256b724e164a04dd50cec7af7810a754d14a194dfbbbbaae806a09"
+      "bytes": 9064,
+      "sha256": "c5d88ad7998222e63e73d52692af8878fc2fde7f3de1c5d220e5c665fb008d45"
     },
     {
       "path": "scripts/python-runtime.ps1",
@@ -466,8 +491,8 @@
     },
     {
       "path": "tests/test_github_export.py",
-      "bytes": 3090,
-      "sha256": "1026fd9445e4123069ef70cee8f08404befe1b0128a57717cb69819948d0683c"
+      "bytes": 3687,
+      "sha256": "6328233a229c1117bb1189cd135e5d5e4a36f9bef2b9e4e9a9151e0ed3e690f5"
     },
     {
       "path": "tests/test_http_quality.py",

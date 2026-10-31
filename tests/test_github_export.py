@@ -37,6 +37,17 @@ def test_credential_like_literal_is_blocked_without_echoing_it(tmp_path):
     assert token not in str(error.value)
 
 
+def test_reviewed_reproduction_configs_are_exported_but_arbitrary_text_is_not(tmp_path):
+    write(tmp_path, "README.md", "demo")
+    write(tmp_path, "experiments/soup/smoke.yaml", "base: .private/models/example")
+    write(tmp_path, "experiments/inference/requirements-lock.txt", "numpy==1.26.0")
+    write(tmp_path, "experiments/customer-records.txt", "PRIVATE_CONTENT")
+    files = publisher.collect_source(tmp_path)
+    assert "experiments/soup/smoke.yaml" in files
+    assert "experiments/inference/requirements-lock.txt" in files
+    assert "experiments/customer-records.txt" not in files
+
+
 def test_existing_repository_is_never_changed(tmp_path, monkeypatch):
     import httpx
     monkeypatch.setattr(publisher, "ROOT", tmp_path)
