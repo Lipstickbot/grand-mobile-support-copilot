@@ -34,10 +34,17 @@ class LLMPolisher:
         self.stats = {"calls": 0, "ok": 0, "errors": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
 
     def _post(self, payload: dict) -> dict:
+        import urllib.parse
         import urllib.request  # stdlib only: no extra dependency for the LLM path
         req = urllib.request.Request(self.url + "/v1/chat/completions", data=json.dumps(payload).encode("utf8"),
                                      headers=self.headers, method="POST")
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+        host = urllib.parse.urlsplit(self.url).hostname or ""
+        if host in ("127.0.0.1", "localhost", "::1"):
+            # a system/VPN proxy must not intercept the local model server
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        else:
+            opener = urllib.request.build_opener()
+        with opener.open(req, timeout=self.timeout) as resp:
             return json.loads(resp.read().decode("utf8"))
 
     @classmethod
@@ -50,7 +57,7 @@ class LLMPolisher:
 
     def polish(self, *, text, lang, category, template, rules, exemplars):
         from .templates import rule_phrase
-        rules_block = [{"ref": d.ref, "mention": rule_phrase(d, lang), "text": d.text[:500]} for d in rules[:4]]
+        rules_block = [{"ref": d.ref, "mention": rule_phrase(d, lang), "text": d.text[:350]} for d in rules[:4]]
         user = json.dumps({"player_text": text[:1500], "category": category, "draft": template,
                            "RULES": rules_block,
                            "style_examples_from_admins": [e["admin"] for e in exemplars[:3]]}, ensure_ascii=False)
@@ -68,8 +75,15 @@ class LLMPolisher:
             usage = data.get("usage") or {}
             self.stats["prompt_tokens"] += usage.get("prompt_tokens", 0)
             self.stats["completion_tokens"] += usage.get("completion_tokens", 0)
-        except Exception:
+        except Exception as exc:  # keep the reason: it is the only clue when a local server misbehaves
             self.stats["errors"] += 1
+            detail = ""
+            if hasattr(exc, "read"):
+                try:
+                    detail = exc.read().decode("utf8", "replace")[:200]
+                except Exception:
+                    pass
+            self.stats["last_error"] = f"{type(exc).__name__}: {exc} {detail}".strip()[:300]
             return None
         finally:
             self.stats["seconds"] += time.monotonic() - started
