@@ -69,3 +69,19 @@ def test_llm_rejection_reasons_are_counted():
         assert llm.polish(text="x", lang=lang, category="complaint.insult", template="t", rules=[rule], exemplars=[]) is None
     assert llm.stats["responses"] == 3 and llm.stats["ok"] == 0
     assert llm.stats["rejected"] == {"unknown_rule_number": 1, "empty_or_too_long": 1, "cyrillic_in_uz": 1}
+
+
+@pytest.mark.parametrize("new,reason", [
+    ("Жалоба на игрока osk принята, п. 2.1 общих правил.", "nickname_lost_or_changed"),
+    ("Жалоба на игрока Ivan_Petrov7 по факту нарушения правил Зелёной зоны принята, п. 2.1.", "unsupported_context_green_zone"),
+    ("Жалоба на игрока Ivan_Petrov7 не принимается к рассмотрению, п. 2.1.", "verdict_claim"),
+    ("Жалоба на игрока Ivan_Petrov7 принята, п. 3.1 общих правил.", "rule_set_changed"),
+    ("Жалоба на игрока Ivan_Petrov7 принята.", "dropped_rule_citation"),
+    ("Жалоба на игрока Ivan_Petrov7 и Anna_Smith2 принята, п. 2.1.", "new_nickname"),
+    ("Уважаемый игрок, жалоба на Ivan_Petrov7 принята к рассмотрению, п. 2.1 общих правил.", None),
+])
+def test_llm_guard_only_allows_restyling(new, reason):
+    from support_copilot.v3.pipeline import llm_guard
+    template = "Уважаемый игрок, благодарим за обращение! Жалоба на игрока Ivan_Petrov7 принята к рассмотрению. Подходящее правило: п. 2.1 общих правил."
+    used = {"rules:30:" + r for r in __import__("re").findall(r"\d\.\d", new)}
+    assert llm_guard(new, template, {"rules:30:2.1"}, used, "Ivan_Petrov7") == reason

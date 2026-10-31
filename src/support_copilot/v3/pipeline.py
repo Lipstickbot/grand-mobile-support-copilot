@@ -35,6 +35,29 @@ PROMISE = re.compile(
     r"бан алынады|ақшаңыз қайтарылады|жазаланады", re.I)
 EVIDENCE_URL = re.compile(r"<url>|https?://|imgur|youtu|fraps|фрапс", re.I)
 NICK_RE = re.compile(r"\b[A-Z][a-z]+_[A-Z][a-z]+\d*\b")
+# The LLM only restyles the grounded template: it may not announce a decision or add context.
+VERDICT_CLAIM = re.compile(r"не\s+(?:принимается|подлежит|рассматривается)|отклон[её]н|одобрен|будет\s+наказан|наказан[аоы]?\b|"
+                           r"выдан[оа]?\s+верно|нарушени[йя]\s+не\s+(?:выявлен|обнаружен)|qabul\s+qilinmaydi|rad\s+etil|"
+                           r"\bqabul\s+qilinmadi|қабылданбайды|қабылданбады|\b(?:rejected|approved|will\s+be\s+punished)\b|"
+                           r"rechazad|aprobad|rejeitad|aprovad", re.I)
+
+
+def llm_guard(new_text: str, template: str, template_ids: set, used_ids: set, nick: str | None) -> str | None:
+    """Reason to reject an LLM rewrite, or None. Checks only what the template already fixed."""
+    if PROMISE.search(new_text):
+        return "promise"
+    if used_ids != template_ids:
+        return "rule_set_changed" if used_ids or not template_ids else "dropped_rule_citation"
+    if nick and nick in template and nick not in new_text:
+        return "nickname_lost_or_changed"
+    if VERDICT_CLAIM.search(new_text) and not VERDICT_CLAIM.search(template):
+        return "verdict_claim"
+    if GZ_CUE.search(new_text) and not GZ_CUE.search(template):
+        return "unsupported_context_green_zone"
+    other_nicks = set(NICK_RE.findall(new_text)) - set(NICK_RE.findall(template))
+    if other_nicks:
+        return "new_nickname"
+    return None
 SERVER_RE = re.compile(r"(?:сервер\w*|server|сервере)\s*(?:№|#|:)?\s*(\d{1,3})\b|\b(\d{1,3})\s*(?:сервер\w*|server)", re.I)
 PAYMENT_EXTRA = re.compile(r"(?:купил\w*|купив|оплатил\w*|оплатив|задонатил\w*|задонатив|поповнив|пополнил\w*|сатып алдым|to.?ladim|sotib oldim|"
                            r"paid|bought|pagu[eé]|compr[eé]|paguei|comprei).{0,60}(?:не\s*(?:приш|пришл|появ|зачисл|получ)|"
@@ -318,12 +341,14 @@ class TriageV3:
                                        rules=list(allowed.values()), exemplars=self.exemplars(text, category, req.get("server_lang")))
             if polished is not None:
                 new_text, used = polished
-                if PROMISE.search(new_text) or not used <= set(allowed):
-                    reasons.append("llm_draft_rejected=promise_or_unknown_rule")
-                elif cited_docs and not used:
-                    reasons.append("llm_draft_rejected=dropped_rule_citation")
+                if not used <= set(allowed):
+                    reasons.append("llm_draft_rejected=unknown_rule")
                 else:
-                    draft_text, cited_docs, draft_source = new_text, [allowed[c] for c in used], "llm"
+                    why = llm_guard(new_text, draft_text, {d.canonical_id for d in cited_docs if d is not None}, set(used), nick)
+                    if why:
+                        reasons.append("llm_draft_rejected=" + why)
+                    else:
+                        draft_text, cited_docs, draft_source = new_text, [allowed[c] for c in used], "llm"
         if PROMISE.search(draft_text):  # belt and braces
             draft_text, cited_docs = render("report.question" if kind == "report" else "complaint_norule", lang, nick=nick), []
             reasons.append("draft_guard=promise_removed")

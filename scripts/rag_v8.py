@@ -98,7 +98,7 @@ def main():
             V["hybrid_rrf(bm25,dense)"].append((g, rrf(bm, dn)))
             V["hybrid_rrf+player_refs"].append((g, list(dict.fromkeys(refs + rrf(bm, dn)))))
             V["hybrid_rrf+refs, reranked by learned head"].append(
-                (g, sorted(dict.fromkeys(refs + rrf(bm, dn))[:10], key=lambda c: -(head_s.get(c, 0) + (.25 if c in refs else 0)))))
+                (g, sorted(list(dict.fromkeys(refs + rrf(bm, dn)))[:10], key=lambda c: -(head_s.get(c, 0) + (.25 if c in refs else 0)))))
     res = {"n_complaints_with_admin_rule": n, "split": a.split, "model_sha256": sha(OUT / "model_split/model_v3.pkl.gz"),
            "gold_refs_ambiguous_without_section": sum(1 for v in V["bm25"] if plain[v[0].split(":")[2]] > 1),
            "note": "reranking = learned rule head re-orders hybrid top-10 (no cross-encoder available offline)"}
