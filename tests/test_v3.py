@@ -157,3 +157,15 @@ def test_six_languages(engine, kind, text, lang, cat):
 def test_real_life_threat_is_p0(engine):
     out = engine.triage({"kind": "complaint", "images_count": 1, "messages": [{"role": "player", "text": "оскорбление родных, угроза жизни"}]})
     assert out["priority"] == "p0" and out["needs_human"] is True
+
+
+@needs_model
+@pytest.mark.parametrize("path,min_lang,min_cat", [("examples/multilingual_eval.jsonl", 60, 60),
+                                                   ("examples/multilingual_holdout.jsonl", 35, 35)])
+def test_multilingual_sets(engine, path, min_lang, min_cat):
+    import json
+    rows = [json.loads(l) for l in (ROOT / path).open(encoding="utf8")]
+    outs = [engine.triage(r) for r in rows]
+    assert sum(o["lang"] == r["expected"]["lang"] for o, r in zip(outs, rows)) >= min_lang
+    assert sum(o["category"] == r["expected"]["category"] for o, r in zip(outs, rows)) >= min_cat
+    assert all(o["draft_reply"]["lang"] == o["lang"] for o in outs)

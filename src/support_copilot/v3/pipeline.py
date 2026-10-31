@@ -21,7 +21,7 @@ from ..policy import topics_for
 from ..text import normalize_retrieval_query
 from . import lang as langmod
 from . import model as modelmod
-from .labels import THREAT_OUTSIDE, MASS_BUG, EMPTY, norm, player_topic
+from .labels import THREAT_OUTSIDE, MASS_BUG, EMPTY, STRONG_APPEAL, norm, player_topic
 from .rulekb import load_rule_ids, parse_refs, taxonomy_prior
 from .templates import render, rule_phrase
 from .sanctions import sanction_text
@@ -237,11 +237,16 @@ class TriageV3:
             category = "report.payment"
         elif kind == "report" and "account" in crit and category != "report.account":
             reasons.append("override=account_cue"); category = "report.account"
-        if lang in ("kk", "en", "es", "pt") or "lang=ukrainian_answered_in_ru" in lang_reasons:
+        if (lang in ("kk", "en", "es", "pt") or "lang=ukrainian_answered_in_ru" in lang_reasons
+                or category in ("report.offtopic", "complaint.other")):
+            # rare languages: keywords first; any language: keywords may refine a "nothing specific" guess
             kw = keyword_category(kind, text)
-            if kw and kw != category:
+            if kw and kw != category and not (kw == "report.question" and category == "report.offtopic" and not text.strip().endswith("?")):
                 reasons.append(f"multilang_keywords={kw} (model={category})")
                 category = kw
+        if kind == "complaint" and category != "complaint.admin" and STRONG_APPEAL.search(norm(text)):
+            reasons.append(f"override=explicit_appeal (model={category})")
+            category = "complaint.admin"
         if category == "complaint.invalid":
             topic = player_topic(text)  # the description itself, not the free-form rule field
             if topic:  # a described violation is never auto-rejected as "empty"
@@ -251,6 +256,10 @@ class TriageV3:
             if category != "report.offtopic":
                 reasons.append("override=bare_help_request_is_offtopic")
             category = "report.offtopic"
+        if (kind == "report" and category == "report.offtopic" and text.strip().endswith("?")
+                and len(re.findall(r"[^\W\d_]{2,}", text)) >= 3):
+            category = "report.question"
+            reasons.append("override=full_question_is_not_offtopic")
         if category == "complaint.other":
             topic = player_topic(text + " " + (refs_raw or ""))
             if topic:
