@@ -132,8 +132,36 @@ def render(items: list[dict], lang: str) -> str:
     return v["sep"].join(lines)
 
 
-def sanction_text(doc, lang: str) -> str:
+_SEGMENT_CUES = {
+    "insult_relatives": r"оск\w*\s*(?:род|мам|мат|семь|отц|пап)|родн|мамк|мать|матер[иь]\b|семь|ona(?:ng|si|mni|dan)|onam|dadam|отбас|анам|mother|family|madre|m[aã]e|família",
+    "mention_relatives": r"упом\w*\s*род|упомина",
+    "third_party_software": r"софт|чит|cheat|chit|aim|аим|wh\b|вх\b|макрос|скрипт|hack|soft|сборк",
+    "bug_abuse": r"баг|bug|bag\b",
+}
+
+
+def _pick_segments(items: list[dict], text: str) -> list[dict]:
+    """Keep the single segment that matches the complaint; otherwise the base one.
+    'Gross'/'repeated' escalations are never shown on their own."""
+    import re as _re
+    t = (text or "").casefold()
+    rel = [x for x in items if x["label"] in ("mention_relatives", "insult_relatives")]
+    if rel and _re.search(_SEGMENT_CUES["insult_relatives"] + "|" + _SEGMENT_CUES["mention_relatives"], t):
+        return rel
+    for it in items:
+        cue = _SEGMENT_CUES.get(it["label"] or "")
+        if cue and _re.search(cue, t):
+            if it["label"] == "insult_relatives":
+                # 'оск родни' vs 'упоминание родных': the rule distinguishes them; show both relative lines
+                rel = [x for x in items if x["label"] in ("mention_relatives", "insult_relatives")]
+                return rel or [it]
+            return [it]
+    base = [it for it in items if it["label"] not in ("gross", "repeated", "mention_relatives", "insult_relatives")]
+    return base[:1]
+
+
+def sanction_text(doc, lang: str, text: str = "") -> str:
     try:
-        return render(parse(doc.text), lang)
+        return render(_pick_segments(parse(doc.text, max_items=4), text), lang)
     except Exception:  # never let a parsing quirk break a draft
         return ""

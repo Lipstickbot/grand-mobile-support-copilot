@@ -39,11 +39,18 @@ SERVER_RE = re.compile(r"(?:сервер\w*|server|сервере)\s*(?:№|#|:)
 PAYMENT_EXTRA = re.compile(r"(?:купил\w*|купив|оплатил\w*|оплатив|задонатил\w*|задонатив|поповнив|пополнил\w*|сатып алдым|to.?ladim|sotib oldim|"
                            r"paid|bought|pagu[eé]|compr[eé]|paguei|comprei).{0,60}(?:не\s*(?:приш|пришл|появ|зачисл|получ)|"
                            r"не\s*з.?явил|немає|нема|не прийш|түспеді|келмеді|kelmadi|tushmadi|not (?:received|arrived|credited)|no (?:lleg|recib)|n[aã]o (?:cheg|receb|apareceu))", re.I)
+RULE_CUES = {  # points that are only relevant when the text says so
+    "rules:30:5.3": re.compile(r"уход|уш[её]л|вышел|выход|ливн|лив\b|релог|leav|left|chiqib|ketdi", re.I),
+    "rules:30:5.4": re.compile(r"\bдом|квартир|у дома|house|apartment|\buy\b|uyim|үй", re.I),
+    "rules:30:5.1": re.compile(r"отыгр|/me|/do|/try|действи|событи|попытк|rp|рп", re.I),
+}
+NOT_A_COMPLAINT = re.compile(r"\?|^(?:где|как|почему|когда|зачем|сколько|можно)\b|не (?:работает|поднимается|приходит|грузит|запускается|открывается)|"
+                             r"\bбаг|лаг|вылет|техподдерж|тех\.? ?поддерж|обновлени|форма репорт|qanday|qayerda|qachon|nega ishlamay|how |where |why ", re.I)
 GZ_CUE = re.compile(r"\bзз\b|\bгз\b|\bgz\b|\bzz\b|зел[её]н\w*\s*зон|green\s*zone|zona\s*verde|yashil|жасыл|"
                     r"больниц|\bбольк|мэри|правительств|автосалон|мотосалон|вокзал|стоянк|авторын|\bсто\b|автошкол|военкомат|"
                     r"\bбанк|банкомат|церк|ч[её]рн\w* рын|почт|магазин|24/7|ресторан|\bазс\b|казино|контейнер|остановк|"
                     r"спавн|шахт|каменолом|ферм|завод|ивент|kasalxona|bank|spawn|hospital", re.I)
-HELP_ONLY = re.compile(r"^(?:(?:пож\w*|пж\w*|плиз|pls|please|admin\w*|админ\w*|адмін\w*|iltimos)\s+)*(?:пом[оа]г\w*|пам[оа]г\w*|поможі\w*|допоможі\w*|хелп\w*|help|yordam|сос|sos|көмектес\w*)(?:\s+(?:пож\w*|пж\w*|плиз|pls|please|me|admin\w*|админ\w*|адмін\w*|iltimos|мне|мені))*$")
+HELP_ONLY = re.compile(r"^(?:(?:пож\w*|пж\w*|плиз|pls|please|admin\w*|админ\w*|адмін\w*|iltimos)\s+)*(?:пом[оа]г\w*|пам[оа]г\w*|поможі\w*|допоможі\w*|хелп\w*|help|yordam|сос|sos|көмектес\w*)(?:\s+(?:пож\w*|пж\w*|плиз|pls|please|me|admin\w*|админ\w*|адмін\w*|iltimos|мне|мені|e|а+|э+|bering|beringlar))*$")
 WHERE_Q = re.compile(r"\bгде\b|\bкуда\b|қайда|qayer|\bwhere\b|d[oó]nde|\bonde\b|как (?:найти|доехать|попасть)", re.I)
 SENSITIVE_HINTS = re.compile(r"взлом|украл\w* акк|разбан|верните|возврат|refund|unban|оплат|донат|списал", re.I)
 
@@ -159,6 +166,9 @@ class TriageV3:
         for doc, score, why in hits:
             if doc.ref is None or (doc.section_id == 32 and not gz_ok and "player_ref" not in why):
                 continue
+            cue = RULE_CUES.get(doc.canonical_id)
+            if cue is not None and "player_ref" not in why and not cue.search(text):
+                continue  # e.g. 5.3 'leaving RP' is not relevant to a bare 'he killed me'
             if category == "complaint.other" and score >= .45 and doc.section_id != 31:
                 return doc
             if doc.canonical_id in allowed and score >= .2:
@@ -168,7 +178,7 @@ class TriageV3:
         return None
 
     # ---------------- drafting ----------------
-    def draft(self, category, lang, hits, nick, has_evidence, duplicate, text=""):
+    def draft(self, category, lang, hits, nick, has_evidence, duplicate, player_text=""):
         cited = []
         get = self.retriever.get
         def cite(doc):
@@ -178,13 +188,15 @@ class TriageV3:
             return render("duplicate", lang, rule=cite(get("rules:31:1.2.9"))), cited
         if category == "complaint.admin":
             return render("admin", lang, rule=cite(get("rules:30:3.4"))), cited
+        if category == "complaint.invalid" and NOT_A_COMPLAINT.search(player_text):
+            return render("not_complaint", lang, rule=cite(get("rules:31:1.1.2"))), cited
         if category == "complaint.invalid":
             doc = get("rules:31:1.2.3") if has_evidence else get("rules:31:1.2.2")
             return render("invalid", lang, rule=cite(doc)), cited
         if category.startswith("complaint."):
-            doc = self._pick_rule(hits, category, text)
+            doc = self._pick_rule(hits, category, player_text)
             text = render("complaint", lang, rule=cite(doc), nick=nick) if doc else render("complaint_norule", lang, nick=nick)
-            sanction = sanction_text(doc, lang) if doc is not None else ""
+            sanction = sanction_text(doc, lang, player_text) if doc is not None else ""
             if sanction:
                 text += render("sanction", lang, sanction=sanction)
             if not has_evidence:
@@ -193,11 +205,13 @@ class TriageV3:
         if category == "report.account":
             return render("report.account", lang, rule=cite(get("rules:30:1.4"))), cited
         if category == "report.complaint":
-            doc = self._pick_rule([h for h in hits if h[0].section_id in (30, 32)], "complaint.insult", text)
+            doc = self._pick_rule([h for h in hits if h[0].section_id in (30, 32)], "complaint.insult", player_text)
             if doc is not None and hits and hits[0][1] >= .3:
                 return render("report.complaint_rule", lang, rule=cite(doc)), cited
             return render("report.complaint", lang), cited
-        if category == "report.question" and WHERE_Q.search(text):
+        if category == "report.offtopic" and HELP_ONLY.match(re.sub(r"[^\w\s]", "", norm(player_text)).strip()):
+            return render("report.help_bare", lang), cited
+        if category == "report.question" and WHERE_Q.search(player_text):
             return render("report.question_where", lang), cited
         return render(category, lang), cited
 
@@ -260,6 +274,10 @@ class TriageV3:
                 and len(re.findall(r"[^\W\d_]{2,}", text)) >= 3):
             category = "report.question"
             reasons.append("override=full_question_is_not_offtopic")
+        if (kind == "complaint" and category == "complaint.other" and NOT_A_COMPLAINT.search(text)
+                and not player_topic(text + " " + (refs_raw or ""))):
+            category = "complaint.invalid"
+            reasons.append("override=question_or_tech_issue_not_a_complaint")
         if category == "complaint.other":
             topic = player_topic(text + " " + (refs_raw or ""))
             if topic:
@@ -312,7 +330,9 @@ class TriageV3:
         if crit or SENSITIVE_HINTS.search(text): human.append("payment_account_or_appeal_topic")
         if kind == "complaint" and category not in ("complaint.invalid",) and not duplicate:
             human.append("punishment_decision_requires_admin_and_screenshots")
-        if category in ("report.help", "report.complaint"): human.append("in_game_action_by_admin")
+        if category in ("report.help", "report.complaint") or (
+                category == "report.offtopic" and HELP_ONLY.match(re.sub(r"[^\w\s]", "", norm(text)).strip())):
+            human.append("in_game_action_by_admin")
         if category == "report.question" and draft_source != "llm": human.append("factual_answer_needed")
         if conf < .5 or margin < .15: human.append("low_classifier_confidence")
         needs_human = bool(human)

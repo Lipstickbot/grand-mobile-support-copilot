@@ -128,8 +128,9 @@ def test_sanctions_parsed_literally():
     from support_copilot.coretypes import RetrievedRule
     from support_copilot.v3.sanctions import sanction_text
     doc = RetrievedRule("rules:30:2.1", 30, "t", "2.1", "Запрещено... | Оскорбление игрока: MUTE - от 15 до 30 минут. | Упоминание родных: MUTE - от 90 до 180 минут.")
-    assert sanction_text(doc, "ru") == "оскорбление игрока — MUTE от 15 до 30 мин; упоминание родных — MUTE от 90 до 180 мин"
-    assert sanction_text(doc, "uz") == "o‘yinchini haqorat qilish — MUTE 15–30 daqiqa; qarindoshlarni tilga olish — MUTE 90–180 daqiqa"
+    assert sanction_text(doc, "ru") == "оскорбление игрока — MUTE от 15 до 30 мин"
+    assert sanction_text(doc, "ru", "упоминание родни в чате") == "упоминание родных — MUTE от 90 до 180 мин"
+    assert sanction_text(doc, "uz", "onadan so'kdi") == "qarindoshlarni tilga olish — MUTE 90–180 daqiqa"
     weird = RetrievedRule("rules:30:9.9", 30, "t", "9.9", "x | Нарушение: Блокировка персонажа - до 31 дня с обнулением имущества.")
     assert sanction_text(weird, "ru") == ""   # not fully understood -> nothing, never a guess
 
@@ -169,3 +170,21 @@ def test_multilingual_sets(engine, path, min_lang, min_cat):
     assert sum(o["lang"] == r["expected"]["lang"] for o, r in zip(outs, rows)) >= min_lang
     assert sum(o["category"] == r["expected"]["category"] for o, r in zip(outs, rows)) >= min_cat
     assert all(o["draft_reply"]["lang"] == o["lang"] for o in outs)
+
+
+
+@needs_model
+@pytest.mark.parametrize("kind,text,cat,needle", [
+    ("complaint", "где остальные пт? не приходят", "complaint.invalid", "1.1.2"),
+    ("report", "помогите", "report.offtopic", "Слежу за вами"),
+    ("complaint", "убил", "complaint.dm", None),
+])
+def test_draft_relevance(engine, kind, text, cat, needle):
+    out = engine.triage({"kind": kind, "images_count": 1, "messages": [{"role": "player", "text": text}]})
+    assert out["category"] == cat
+    if needle == "1.1.2":
+        assert out["draft_reply"]["cited"] == ["1.1.2"]
+    elif needle:
+        assert needle in out["draft_reply"]["text"] and out["needs_human"] is True
+    else:
+        assert "5.3" not in out["draft_reply"]["cited"]   # 'leaving RP' is not relevant to a bare kill

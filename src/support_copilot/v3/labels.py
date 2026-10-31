@@ -42,7 +42,7 @@ PLAYER_KW = [
 ADMIN_APPEAL = re.compile(r"наказани\w* (?:было )?выдан\w* (?:верно|неверно|правильно|ошибочно)|будет снят|снято|снимем|"
                           r"с администратором (?:будет )?проведен|администратор\w* (?:получит|будет)|перевыдан|"
                           r"обжалован|амнист|наказание остается|оставлено в силе", re.I)
-STRONG_APPEAL = re.compile(r"не соглас|beribsiz|bo.?shatibsiz|tushunt\w*(?:b| ?ib) ber\w*|isbot\w* (?:bormi|ber\w*)|to.?liq rasm\w*|so.?kingan joyim|nega (?:menga )?(?:ban|mute|jazo|ogohlantirish)|\bопру|опроверж|(?:menga|meni|мне|меня)\b.{0,25}(?:mute|мут|ban\b|бан\b|jail|джайл|qamad)|(?:mute|ban|jail) (?:berdi|beradi|berildi)|сним\w* (?:с меня )?(?:бан|мут|наказ|варн|джайл|блок)|разбан|разблок|пересмотр|обжал|незаслуж|"
+STRONG_APPEAL = re.compile(r"не соглас|beribsiz|bo.?shatibsiz|tushunt\w*(?:b| ?ib) ber\w*|isbot\w* (?:bormi|ber\w*)|to.?liq rasm\w*|so.?kingan joyim|nega (?:menga )?(?:ban|mute|jazo|ogohlantirish)|\bопру|опроверж|(?:menga|meni|manga|мне|меня)\b.{0,25}(?:mute|мут|ban\b|бан\b|jail|джайл|qamad|warn|варн|ogohlantirish|предупрежд)|(?:mute|ban|jail) (?:berdi|beradi|berildi)|сним\w* (?:с меня )?(?:бан|мут|наказ|варн|джайл|блок)|разбан|разблок|пересмотр|обжал|незаслуж|"
     r"(?:мне|меня) (?:дали|выдали|забанил\w*|замутил\w*|посадил\w*)|(?:дали|выдали|выдал) (?:мне )?(?:бан|мут|варн|джайл|предупр|деморган)|"
     r"за что (?:бан|мут|варн|меня)|снизить наказ|перевыдал|ban (?:yech|ochi|olib)|bandan|nohaq|noto.g.ri (?:ban|qaror|jazo)|"
     r"meni (?:ban|qamad)|menga (?:ban|nohaq)|бан(?:ды)? (?:алып|ал)|не үшін бан|бан бер|наказание выдано|unban|wrongly banned", re.I)

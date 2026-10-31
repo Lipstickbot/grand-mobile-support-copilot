@@ -44,10 +44,12 @@ TOPIC = {
     "rules:31:1.2.3": ("нет точного описания сути", "мәннің нақты сипаттамасы жоқ", "mohiyatning aniq tavsifi yo‘q", "no clear description"),
     "rules:31:1.2.7": ("оскорбления в тексте жалобы", "шағым мәтініндегі қорлау", "shikoyat matnidagi haqorat", "insults in the complaint text"),
     "rules:31:1.2.9": ("дублирование жалобы", "шағымның қайталануы", "shikoyat takrori", "duplicate complaint"),
+    "rules:31:1.1.2": ("раздел жалоб не для вопросов и технических проблем", "шағым бөлімі сұрақтар мен техникалық мәселелерге арналмаған", "shikoyatlar bo‘limi savollar va texnik muammolar uchun emas", "the complaints section is not for questions or technical issues"),
     "rules:31:1.3.1": ("обязательные требования к жалобе", "шағымға қойылатын міндетті талаптар", "shikoyatga majburiy talablar", "mandatory complaint requirements"),
 }
 # es / pt topics, same keys as TOPIC
 TOPIC_ES_PT = {
+    "rules:31:1.1.2": ("la sección de quejas no es para preguntas ni problemas técnicos", "a seção de denúncias não é para perguntas nem problemas técnicos"),
     "rules:30:2.1": ("insultar a un jugador o a sus familiares", "insultar um jogador ou seus familiares"),
     "rules:30:2.2": ("propaganda de temas prohibidos", "propaganda de temas proibidos"),
     "rules:30:2.3": ("publicidad", "publicidade"),
@@ -100,6 +102,8 @@ def rule_phrase(doc, lang: str) -> str:
 
 T = {
     "ru": {
+        "not_complaint": "Уважаемый игрок, благодарим за обращение! Обращение не может быть рассмотрено как жалоба: {rule}. С вопросом по игре напишите в репорт, с технической проблемой обратитесь в техподдержку.",
+        "report.help_bare": "Приветствую! Слежу за вами. Опишите, пожалуйста, что случилось — постараюсь помочь.",
         "report.question_where": "Приветствую! Нужное место можно найти через навигатор в игре. Если не получится, уточните, что именно ищете.",
         "sanction": " Если нарушение подтвердится, по этому пункту правилами предусмотрено: {sanction}.",
         "complaint": "Уважаемый игрок, благодарим за обращение! Жалоба{on_nick} принята к рассмотрению. Подходящее правило: {rule}. Администратор проверит приложенные доказательства и сообщит решение.",
@@ -118,6 +122,8 @@ T = {
         "on_nick": " на игрока {nick}",
     },
     "kk": {
+        "not_complaint": "Құрметті ойыншы, өтінішіңіз үшін рахмет! Өтініш шағым ретінде қаралмайды: {rule}. Ойын туралы сұрақты репортқа жазыңыз, техникалық мәселе бойынша техқолдауға жүгініңіз.",
+        "report.help_bare": "Сәлеметсіз бе! Сізді бақылап отырмын. Не болғанын жазыңызшы — көмектесуге тырысамын.",
         "report.question_where": "Сәлеметсіз бе! Қажетті орынды ойындағы навигатор арқылы табуға болады. Шықпаса, нақты не іздеп жүргеніңізді жазыңыз.",
         "sanction": " Бұзушылық расталса, бұл тармақ бойынша ережеде көзделген: {sanction}.",
         "complaint": "Құрметті ойыншы, өтінішіңіз үшін рахмет! {nick_kk}шағым қарауға қабылданды. Қатысты ереже: {rule}. Әкімші қоса берілген дәлелдерді тексеріп, шешімін хабарлайды.",
@@ -136,6 +142,8 @@ T = {
         "on_nick": "",
     },
     "uz": {
+        "not_complaint": "Hurmatli o‘yinchi, murojaatingiz uchun rahmat! Murojaat shikoyat sifatida ko‘rib chiqilmaydi: {rule}. O‘yin bo‘yicha savolni reportga yozing, texnik muammo bo‘yicha texnik yordamga murojaat qiling.",
+        "report.help_bare": "Assalomu alaykum! Sizni kuzatyapman. Nima bo‘lganini yozing — yordam berishga harakat qilaman.",
         "report.question_where": "Assalomu alaykum! Kerakli joyni o‘yindagi navigator orqali topishingiz mumkin. Topa olmasangiz, aynan nimani qidirayotganingizni yozing.",
         "sanction": " Qoidabuzarlik tasdiqlansa, ushbu band bo‘yicha qoidalarda nazarda tutilgan: {sanction}.",
         "complaint": "Hurmatli o‘yinchi, murojaatingiz uchun rahmat! {nick_uz}shikoyatingiz ko‘rib chiqishga qabul qilindi. Tegishli qoida: {rule}. Administrator ilova qilingan dalillarni tekshirib, qaror haqida xabar beradi.",
@@ -154,6 +162,8 @@ T = {
         "on_nick": "",
     },
     "en": {
+        "not_complaint": "Dear player, thank you for reaching out! This cannot be reviewed as a complaint: {rule}. Ask game questions via the in-game report, and contact technical support for technical problems.",
+        "report.help_bare": "Hello! I'm watching. Please describe what happened and I'll try to help.",
         "report.question_where": "Hello! You can find the place you need via the in-game navigator. If that doesn't work, tell us exactly what you're looking for.",
         "sanction": " If the violation is confirmed, this rule provides for: {sanction}.",
         "complaint": "Dear player, thank you for reaching out! Your complaint{on_nick} has been accepted for review. Relevant rule: {rule}. An administrator will check the attached evidence and report the decision.",
@@ -172,6 +182,8 @@ T = {
         "on_nick": " against {nick}",
     },
     "es": {
+        "not_complaint": "Estimado jugador, ¡gracias por escribirnos! Esto no puede revisarse como una queja: {rule}. Haga sus preguntas sobre el juego mediante el reporte en el juego y contacte al soporte técnico para problemas técnicos.",
+        "report.help_bare": "¡Hola! Le estoy observando. Describa qué ocurrió e intentaré ayudarle.",
         "report.question_where": "¡Hola! Puede encontrar el lugar que necesita con el navegador del juego. Si no lo logra, indique qué busca exactamente.",
         "complaint": "Estimado jugador, ¡gracias por escribirnos! Su queja{on_nick} fue aceptada para revisión. Regla aplicable: {rule}. Un administrador revisará las pruebas adjuntas y le comunicará la decisión.",
         "complaint_norule": "Estimado jugador, ¡gracias por escribirnos! Su queja{on_nick} fue aceptada para revisión. Un administrador revisará las pruebas adjuntas y le comunicará la decisión.",
@@ -190,6 +202,8 @@ T = {
         "on_nick": " contra {nick}",
     },
     "pt": {
+        "not_complaint": "Prezado jogador, obrigado pelo contato! Isto não pode ser analisado como denúncia: {rule}. Envie perguntas sobre o jogo pelo report no jogo e procure o suporte técnico para problemas técnicos.",
+        "report.help_bare": "Olá! Estou acompanhando você. Descreva o que aconteceu e vou tentar ajudar.",
         "report.question_where": "Olá! Você pode encontrar o local com o navegador do jogo. Se não conseguir, diga exatamente o que está procurando.",
         "complaint": "Prezado jogador, obrigado pelo contato! Sua denúncia{on_nick} foi aceita para análise. Regra aplicável: {rule}. Um administrador vai verificar as provas anexadas e informar a decisão.",
         "complaint_norule": "Prezado jogador, obrigado pelo contato! Sua denúncia{on_nick} foi aceita para análise. Um administrador vai verificar as provas anexadas e informar a decisão.",
