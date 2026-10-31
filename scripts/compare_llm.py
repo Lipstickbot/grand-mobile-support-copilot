@@ -29,11 +29,14 @@ def main():
     rows = [json.loads(l) for l in open(a.input, encoding="utf8") if l.strip()]
     random.Random(a.seed).shuffle(rows)
     rows = rows[:a.n]
-    cards, lat, used = [], [], 0
+    cards, lat, used, pipe_rej = [], [], 0, {}
     for r in rows:
         t0 = base.triage(r)
         s = time.monotonic(); t1 = with_llm.triage(r); lat.append(time.monotonic() - s)
         used += "draft=llm" in t1["reasons"]
+        for x in t1["reasons"]:
+            if x.startswith("llm_draft_rejected="):
+                pipe_rej[x.split("=", 1)[1]] = pipe_rej.get(x.split("=", 1)[1], 0) + 1
         player = "\n".join(m["text"] for m in r["messages"] if m["role"] == "player")
         admin = "\n".join(m["text"] for m in r["messages"] if m["role"] == "admin")
         cards.append(f"""<section><h3>{html.escape(t0['category'])} · {t0['lang']} · {t0['priority']}</h3>
@@ -42,8 +45,12 @@ def main():
 <div><b>LLM {'✅' if 'draft=llm' in t1['reasons'] else '⛔ отклонён проверкой → шаблон'}</b><p>{html.escape(t1['draft_reply']['text'])}</p></div>
 <div><b>Реальный ответ админа</b><p>{html.escape(admin) or '—'}</p></div></div></section>""")
     lat.sort()
-    stats = {"n": len(rows), "llm_drafts_accepted": used, "p50_s": round(lat[len(lat) // 2], 2),
-             "p95_s": round(lat[int(.95 * (len(lat) - 1))], 2), "llm": llm.stats}
+    stats = {"n": len(rows), "llm_attempts": llm.stats["calls"], "llm_responses_received": llm.stats["responses"],
+             "llm_drafts_accepted_after_guard": used, "rejected_by_llm_guard": llm.stats["rejected"],
+             "rejected_by_pipeline_guard": pipe_rej, "transport_errors": llm.stats["errors"],
+             "template_fallback_share": round(1 - used / max(1, len(rows)), 3),
+             "scope": "whole triage() request incl. LLM call, local llama.cpp, API cost $0 (hardware cost unknown)",
+             "p50_s": round(lat[len(lat) // 2], 2), "p95_s": round(lat[int(.95 * (len(lat) - 1))], 2), "llm": llm.stats}
     page = f"""<!doctype html><meta charset=utf-8><title>Шаблон vs LLM</title>
 <style>body{{font:14px/1.45 system-ui;margin:24px;max-width:1300px}}section{{border-top:1px solid #ddd;padding:12px 0}}
 .g{{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}}.g div{{background:#f6f5f2;padding:8px 12px;border-radius:8px}}

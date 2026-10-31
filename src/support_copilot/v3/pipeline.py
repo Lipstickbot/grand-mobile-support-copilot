@@ -98,6 +98,7 @@ class TriageV3:
         self.llm = llm
         self.duplicates = DuplicateTracker()
         self.ready = False
+        self.disabled: set[str] = set()  # ablation switches for category overrides (experiments only)
 
     def load(self):
         self.bundle = modelmod.load(self.model_dir)
@@ -253,44 +254,47 @@ class TriageV3:
         # safety overrides independent of the learned model
         if PAYMENT_EXTRA.search(text):
             crit = crit | {"payment"}
-        if kind == "report" and ("payment" in crit or ("payment" in topics and category != "report.account")):
+        on = lambda name: name not in self.disabled  # noqa: E731
+        if not on("payment_account"):
+            pass
+        elif kind == "report" and ("payment" in crit or ("payment" in topics and category != "report.account")):
             if category != "report.payment": reasons.append("override=payment_cue")
             category = "report.payment"
         elif kind == "report" and "account" in crit and category != "report.account":
             reasons.append("override=account_cue"); category = "report.account"
-        if (lang in ("kk", "en", "es", "pt") or "lang=ukrainian_answered_in_ru" in lang_reasons
+        if on("multilang_keywords") and (lang in ("kk", "en", "es", "pt") or "lang=ukrainian_answered_in_ru" in lang_reasons
                 or category in ("report.offtopic", "complaint.other")):
             # rare languages: keywords first; any language: keywords may refine a "nothing specific" guess
             kw = keyword_category(kind, text)
             if kw and kw != category and not (kw == "report.question" and category == "report.offtopic" and not text.strip().endswith("?")):
                 reasons.append(f"multilang_keywords={kw} (model={category})")
                 category = kw
-        if kind == "complaint" and category != "complaint.admin" and STRONG_APPEAL.search(norm(text)):
+        if on("appeal") and kind == "complaint" and category != "complaint.admin" and STRONG_APPEAL.search(norm(text)):
             reasons.append(f"override=explicit_appeal (model={category})")
             category = "complaint.admin"
-        if category == "complaint.invalid":
+        if on("invalid_to_topic") and category == "complaint.invalid":
             topic = player_topic(text)  # the description itself, not the free-form rule field
             if topic:  # a described violation is never auto-rejected as "empty"
                 category = "complaint." + topic
                 reasons.append("override=invalid_but_violation_described_" + topic)
-        if kind == "report" and HELP_ONLY.match(re.sub(r"[^\w\s]", "", norm(text)).strip()):
+        if on("bare_help") and kind == "report" and HELP_ONLY.match(re.sub(r"[^\w\s]", "", norm(text)).strip()):
             if category != "report.offtopic":
                 reasons.append("override=bare_help_request_is_offtopic")
             category = "report.offtopic"
-        if (kind == "report" and category == "report.offtopic" and text.strip().endswith("?")
+        if (on("full_question") and kind == "report" and category == "report.offtopic" and text.strip().endswith("?")
                 and len(re.findall(r"[^\W\d_]{2,}", text)) >= 3):
             category = "report.question"
             reasons.append("override=full_question_is_not_offtopic")
-        if (kind == "complaint" and category == "complaint.other" and NOT_A_COMPLAINT.search(text)
+        if (on("not_a_complaint") and kind == "complaint" and category == "complaint.other" and NOT_A_COMPLAINT.search(text)
                 and not player_topic(text + " " + (refs_raw or ""))):
             category = "complaint.invalid"
             reasons.append("override=question_or_tech_issue_not_a_complaint")
-        if category == "complaint.other":
+        if on("keyword_backoff") and category == "complaint.other":
             topic = player_topic(text + " " + (refs_raw or ""))
             if topic:
                 category = "complaint." + topic
                 reasons.append("backoff=player_keywords_" + topic)
-        if kind == "complaint" and not re.search(r"[^\W\d_]{3,}", re.sub(r"<\w+>", " ", text)) and not (refs_raw or "").strip(".… "):
+        if on("empty_description") and kind == "complaint" and not re.search(r"[^\W\d_]{3,}", re.sub(r"<\w+>", " ", text)) and not (refs_raw or "").strip(".… "):
             if category != "complaint.invalid": reasons.append("override=empty_description")
             category = "complaint.invalid"
         priority, preasons = self.priority(category, text)

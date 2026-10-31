@@ -50,7 +50,8 @@ def _read_jsonl(path: Path):
         return [json.loads(line) for line in stream if line.strip()]
 
 
-def train(data_dir: Path, out_dir: Path, *, svm_c: float = 0.5, memory_size: int = 12000, seed: int = 13, log=print):
+def train(data_dir: Path, out_dir: Path, *, svm_c: float = 0.5, memory_size: int = 12000, seed: int = 13, log=print,
+          include_ids: set[str] | None = None):
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.pipeline import make_union
     from sklearn.svm import LinearSVC
@@ -59,6 +60,8 @@ def train(data_dir: Path, out_dir: Path, *, svm_c: float = 0.5, memory_size: int
     out_dir.mkdir(parents=True, exist_ok=True)
     started = time.time()
     tickets = _read_jsonl(data_dir / "tickets_train.jsonl.gz")
+    if include_ids is not None:  # group split: train only on the given tickets (test/dev groups excluded)
+        tickets = [t for t in tickets if t["ticket_id"] in include_ids]
     known = load_rule_ids(data_dir / "rules.json")
     texts = [feature_text(t["kind"], player_text(t), t.get("rule_refs_raw")) for t in tickets]
     labels = [weak_category(t)[0] for t in tickets]
@@ -109,7 +112,7 @@ def train(data_dir: Path, out_dir: Path, *, svm_c: float = 0.5, memory_size: int
         pickle.dump(bundle, stream, protocol=pickle.HIGHEST_PROTOCOL)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     manifest = {"format": FORMAT, "sha256": digest, "trained_on": "tickets_train.jsonl.gz",
-                "n_train": len(tickets), "svm_c": svm_c, "seconds": round(time.time() - started, 1),
+                "n_train": len(tickets), "svm_c": svm_c, "subset": include_ids is not None, "seconds": round(time.time() - started, 1),
                 "label_kind": bundle["label_kind"], "rule_head_classes": list(rule_head.classes_)}
     (out_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf8")
     log(f"saved {path} ({path.stat().st_size / 1e6:.1f} MB) in {manifest['seconds']} s")

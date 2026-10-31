@@ -31,7 +31,8 @@ class LLMPolisher:
         self.model, self.timeout, self.max_tokens = model, timeout, max_tokens
         self.no_think = os.getenv("COPILOT_V3_LLM_NO_THINK", "1") == "1"
         self.headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}
-        self.stats = {"calls": 0, "ok": 0, "errors": 0, "prompt_tokens": 0, "completion_tokens": 0, "seconds": 0.0}
+        self.stats = {"calls": 0, "responses": 0, "ok": 0, "errors": 0, "rejected": {}, "prompt_tokens": 0,
+                      "completion_tokens": 0, "seconds": 0.0}
 
     def _post(self, payload: dict) -> dict:
         import urllib.parse
@@ -55,6 +56,10 @@ class LLMPolisher:
         return cls(url, os.getenv("COPILOT_V3_LLM_MODEL", "local"), os.getenv("COPILOT_V3_LLM_KEY"),
                    float(os.getenv("COPILOT_V3_LLM_TIMEOUT", "4.5")))
 
+    def _reject(self, reason: str):
+        self.stats["rejected"][reason] = self.stats["rejected"].get(reason, 0) + 1
+        return None
+
     def polish(self, *, text, lang, category, template, rules, exemplars):
         from .templates import rule_phrase
         rules_block = [{"ref": d.ref, "mention": rule_phrase(d, lang), "text": d.text[:350]} for d in rules[:4]]
@@ -75,6 +80,7 @@ class LLMPolisher:
             usage = data.get("usage") or {}
             self.stats["prompt_tokens"] += usage.get("prompt_tokens", 0)
             self.stats["completion_tokens"] += usage.get("completion_tokens", 0)
+            self.stats["responses"] += 1
         except Exception as exc:  # keep the reason: it is the only clue when a local server misbehaves
             self.stats["errors"] += 1
             detail = ""
@@ -88,14 +94,14 @@ class LLMPolisher:
         finally:
             self.stats["seconds"] += time.monotonic() - started
         if not out or len(out) > 700:
-            return None
+            return self._reject("empty_or_too_long")
         allowed_refs = {d.ref: d.canonical_id for d in rules}
         used = set()
         for ref in REF_IN_TEXT.findall(out):
             if ref not in allowed_refs:
-                return None  # hallucinated rule number -> keep the template
+                return self._reject("unknown_rule_number")  # hallucinated rule number -> keep the template
             used.add(allowed_refs[ref])
         if lang == "uz" and re.search(r"[а-яё]", out, re.I):
-            return None
+            return self._reject("cyrillic_in_uz")
         self.stats["ok"] += 1
         return out, used
