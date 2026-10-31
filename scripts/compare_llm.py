@@ -19,6 +19,8 @@ def main():
     ap.add_argument("--input", default=str(ROOT / ".private/data/tickets_valid.jsonl"))
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--exclude-seed", type=int, default=None)
+    ap.add_argument("--exclude-n", type=int, default=30)
     ap.add_argument("--out", default=str(ROOT / ".private/v3/llm_compare.html"))
     a = ap.parse_args()
     llm = LLMPolisher.from_env()
@@ -27,8 +29,12 @@ def main():
     base = TriageV3(ROOT / ".private/data", ROOT / ".private/v3").load()
     with_llm = TriageV3(ROOT / ".private/data", ROOT / ".private/v3", llm=llm).load()
     rows = [json.loads(l) for l in open(a.input, encoding="utf8") if l.strip()]
+    seen = set()
+    if a.exclude_seed is not None:  # keep a fresh sample disjoint from an earlier reviewed one
+        old = list(rows); random.Random(a.exclude_seed).shuffle(old)
+        seen = {r["ticket_id"] for r in old[:a.exclude_n]}
     random.Random(a.seed).shuffle(rows)
-    rows = rows[:a.n]
+    rows = [r for r in rows if r["ticket_id"] not in seen][:a.n]
     cards, lat, used, pipe_rej = [], [], 0, {}
     for r in rows:
         t0 = base.triage(r)
